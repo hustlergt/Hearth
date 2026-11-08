@@ -215,8 +215,12 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 			}
 			measuredAt = Date.now();
 		};
+		let skip = false;
 		const frame = () => {
 			if (stopped) return;
+			// every second frame only: at this speed 30 steps a second look the same, for half the work on the TV
+			skip = !skip;
+			if (skip && items.length) { raf = window.requestAnimationFrame(frame); return; }
 			const now = Date.now();
 			if (now - measuredAt > 1000) measure();
 			for (const it of items) setX(it.el, marqueeOffset(now - start, it.over));

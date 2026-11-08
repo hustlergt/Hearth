@@ -328,6 +328,7 @@ html, body {
 	fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 	-webkit-animation: transit-pulse 1.4s ease-in-out infinite;
 	animation: transit-pulse 1.4s ease-in-out infinite;
+	will-change: opacity;          /* its own layer: the pulse does not repaint the board on every frame */
 }
 @-webkit-keyframes transit-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes transit-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }

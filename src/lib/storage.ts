@@ -499,6 +499,7 @@ export function dropPrefsBackup (): void {
 const RESCUE_KEY = 'hearth-config-rescue-v1';
 
 export function loadConfig (): UserConfig {
+	flushConfig();          // a save still waiting (saveConfigSoon) is written first, so this reads the newest settings
 	let raw: string | null = null;
 	try {
 		raw = localStorage.getItem(STORAGE_KEY);
@@ -650,7 +651,39 @@ export function setSaveFailHandler (fn: (() => void) | null): void { saveFailHan
 let failReported = false;
 
 /** Saves the settings. A full store frees rebuildable caches (lib/storeguard.ts) and retries. Returns whether the value was stored. */
+/** A save waiting to be written (saveConfigSoon). Any direct save replaces it: the settings are always changed from the
+ *  current state, so a later save holds everything the waiting one had. */
+let pendingSave: UserConfig | null = null;
+let pendingTimer = 0;
+const SAVE_SOON_MS = 300;
+
+/** For settings changed by key presses (holding an arrow steps a value many times a second): the settings are written
+ *  once the presses stop, and at once when the launcher goes to the background or is closed. */
+export function saveConfigSoon (config: UserConfig): void {
+	pendingSave = config;
+	window.clearTimeout(pendingTimer);
+	pendingTimer = window.setTimeout(flushConfig, SAVE_SOON_MS);
+	watchForLeaving();
+}
+
+/** Writes a waiting save now, if there is one. */
+export function flushConfig (): void {
+	const config = pendingSave;
+	if (!config) return;
+	saveConfig(config);
+}
+
+let watching = false;
+function watchForLeaving (): void {
+	if (watching || typeof document === 'undefined') return;
+	watching = true;
+	document.addEventListener('visibilitychange', () => { if (document.hidden) flushConfig(); });
+	window.addEventListener('pagehide', flushConfig);
+	window.addEventListener('beforeunload', flushConfig);
+}
+
 export function saveConfig (config: UserConfig): boolean {
+	if (pendingSave) { pendingSave = null; window.clearTimeout(pendingTimer); }
 	let json = '';
 	try { json = JSON.stringify(config); } catch { return false; }
 	const r = writeWithRoom(localStorage, STORAGE_KEY, json);

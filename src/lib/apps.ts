@@ -271,23 +271,39 @@ function loadIconsWith (points: LaunchPoint[], now: Record<string, string>): Pro
 export function cachedApps (): AppEntry[] {
 	try {
 		const icons = readIconCache();
-		return withKeptIcons(deserializeApps(localStorage.getItem(APPS_CACHE_KEY), (path) => icons[path]));
+		const saved = localStorage.getItem(APPS_CACHE_KEY);
+		savedApps = saved;
+		return withKeptIcons(deserializeApps(saved, (path) => icons[path]));
 	} catch { return []; }
 }
 
+/** The app list text last written (or read at start): an unchanged list is not written again on every return home. */
+let savedApps: string | null = null;
+
 export function cacheApps (apps: AppEntry[]): void {
-	try { localStorage.setItem(APPS_CACHE_KEY, serializeApps(apps)); }
-	catch { /* quota exceeded: the next start just waits for the real list */ }
+	const text = serializeApps(apps);
+	if (text === savedApps) return;
+	try { localStorage.setItem(APPS_CACHE_KEY, text); savedApps = text; }
+	catch { savedApps = null; /* quota exceeded: the next start just waits for the real list */ }
 }
 
+/** The icon cache, parsed once per session (on a TV with 30-odd apps it is about 300 KB of text, and the app list is read
+ *  again after every return home). Callers get a copy of the map, so their changes reach the cache only through
+ *  writeIconCache. Safe if the storage guard drops the stored copy: it drops the stamps with it, and an icon is reused only
+ *  while its stamp is stored (iconIsFresh), so every icon is read again and written back. */
+let iconMemo: Record<string, string> | null = null;
+
 function readIconCache (): Record<string, string> {
-	try { return JSON.parse(localStorage.getItem(ICON_CACHE_KEY) || '{}'); }
-	catch { return {}; }
+	if (!iconMemo) {
+		try { iconMemo = JSON.parse(localStorage.getItem(ICON_CACHE_KEY) || '{}') as Record<string, string>; }
+		catch { return {}; }
+	}
+	return {...iconMemo};
 }
 
 function writeIconCache (cache: Record<string, string>): void {
-	try { localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(cache)); }
-	catch { /* quota exceeded: icons will simply be re-fetched next time */ }
+	try { localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(cache)); iconMemo = {...cache}; }
+	catch { iconMemo = null; /* quota exceeded: icons will simply be re-fetched next time */ }
 }
 
 function readIconStamps (): Record<string, string> {

@@ -177,9 +177,11 @@ WebOSWindow {
             var l = [];
             var all = aerialSources.length === 0;
             if (feed && feed.assets) {
+                // only what playing needs is kept (one URL per clip, not all three), so the list takes about a third of the memory
                 for (var i = 0; i < feed.assets.length; i++) {
                     var a = feed.assets[i];
-                    if ((all || aerialSources.indexOf(a.s) !== -1) && aerialUrl(a) !== "") l.push(a);
+                    var u = (all || aerialSources.indexOf(a.s) !== -1) ? aerialUrl(a) : "";
+                    if (u !== "") l.push({id: a.id, n: a.n, p: a.p, u: u});
                 }
             }
             if (l.length === 0) { aerialFallback("no clips in the list"); return; }
@@ -253,7 +255,7 @@ WebOSWindow {
         try {
             aerialVideo = Qt.createQmlObject(videoQml("5.6", false), aerialLayer, "hearthAerial");
             aerialPending = true;
-            aerialVideo.source = aerialUrl(a);
+            aerialVideo.source = a.u;
             aerialWatch.restart();
         } catch (e) { aerialVideo = null; aerialFail("video: " + e, null); }
     }

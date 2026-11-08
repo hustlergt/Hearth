@@ -327,18 +327,29 @@ function prepare (url: string, img: HTMLImageElement): Promise<LoadedPicture> {
 		context.drawImage(img, 0, 0, size.width, size.height);
 		snapshot = canvas.toDataURL('image/jpeg', 0.82);
 	} catch {
+		if (canvas) freeCanvas(canvas);
 		canvas = null;
 		snapshot = null;
 	}
-	if (!canvas || !isOversized(img.naturalWidth, img.naturalHeight)) return Promise.resolve({url, snapshot});
+	if (!canvas || !isOversized(img.naturalWidth, img.naturalHeight)) {
+		if (canvas) freeCanvas(canvas);
+		return Promise.resolve({url, snapshot});
+	}
 	const shrunk = canvas;
 	return new Promise<LoadedPicture>((resolve) => {
 		shrunk.toBlob((blob) => {
+			freeCanvas(shrunk);
 			if (!blob) { resolve({url, snapshot}); return; }
 			releasePicture(url);
 			resolve({url: URL.createObjectURL(blob), snapshot});
 		}, 'image/jpeg', 0.9);
 	});
+}
+
+/** A screen-sized canvas holds about 8 MB of pixels until it is collected; a 0x0 size lets them go at once. */
+function freeCanvas (canvas: HTMLCanvasElement): void {
+	canvas.width = 0;
+	canvas.height = 0;
 }
 
 function decode (url: string): Promise<HTMLImageElement> {

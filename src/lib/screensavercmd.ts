@@ -10,7 +10,7 @@ import {t as tt} from '../i18n';
 export {lastLine, parseExit, withStatus};
 
 /** Bump when the script or the QML change: the launcher then rewrites the installed copy. */
-export const SAVER_VERSION = '21';
+export const SAVER_VERSION = '22';
 export const SAVER_DIR = '/media/developer/launcher-screensaver';
 export const SAVER_LINK = '/var/lib/webosbrew/init.d/49-launcher-screensaver';
 

@@ -70,7 +70,7 @@ import {PACK_ID, isBundledLanguage} from './lib/languages';
 import {applyPref, disabledReason, findPref, homeReplacementOn, GROUP_PREFIX, optionsFor, resetLook, type Press, type PrefTab, type SystemInfo} from './lib/prefs';
 import {storeReport} from './lib/storeguard';
 import {setProbeContext} from './lib/probecontext';
-import {loadConfig, saveConfig, saveConfigVerified, setSaveFailHandler, isMonoStyle, effectiveIconStyle, hasLightTile, toggleId, DEFAULT_WALLPAPER, withBackedUpLook, dropPrefsBackup, type UserConfig} from './lib/storage';
+import {loadConfig, saveConfig, saveConfigSoon, saveConfigVerified, setSaveFailHandler, isMonoStyle, effectiveIconStyle, hasLightTile, toggleId, DEFAULT_WALLPAPER, withBackedUpLook, dropPrefsBackup, type UserConfig} from './lib/storage';
 import {readLastOpened, writeLastOpened} from './lib/homefocus';
 import {checkColdBoot, markOpened, openedThisPage} from './lib/coldstart';
 import {applyTheme, THEMES} from './theme/tokens';
@@ -847,7 +847,8 @@ export function App () {
 		if (outcome.iconsFailed) notes.push(`${outcome.iconsFailed} icons could not be read or kept.`);
 		setNotice({title: diff || outcome.iconsFailed ? tt('app.withDifferences', {title}) : title, text: notes.join(' '), buttons: [{label: tt('app.ok'), tone: 'light', run: () => setNotice(null)}], onBack: () => setNotice(null)});
 	};
-	const updateConfig = (next: UserConfig) => { setConfig(next); saveConfig(next); };
+	// Settings presses (holding an arrow steps a value many times a second): saved once the presses stop (storage.ts)
+	const updateConfig = (next: UserConfig) => { setConfig(next); saveConfigSoon(next); };
 	// I2: for callbacks that run later (after an await): applies the change to the CURRENT settings, never to the copy from click time
 	const patchConfig = (patch: Partial<UserConfig> | ((c: UserConfig) => Partial<UserConfig>)) => setConfig((c) => { const next = {...c, ...(typeof patch === 'function' ? patch(c) : patch)}; saveConfig(next); return next; });
 
