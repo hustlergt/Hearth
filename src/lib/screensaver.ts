@@ -22,7 +22,8 @@ const FILES = {screensaverSh: lf(screensaverSh), qml: lf(qml)};
 
 /** What the screen saver is told: the folder or picture (see saverconfig.ts), and its own speed, shuffle and dim settings. */
 export function saverSettings (c: UserConfig): SaverSettings {
-	return {source: saverSource(c), interval: c.screensaverInterval, shuffle: c.screensaverShuffle, dim: c.screensaverDim, care: careNumber(c.screensaverCare), fill: fillNumber(c.screensaverFit), powerOff: c.screensaverPowerOff, recursive: saverRecursive(c), dimLevel: c.screensaverDimLevel};
+	return {source: saverSource(c), interval: c.screensaverInterval, shuffle: c.screensaverShuffle, dim: c.screensaverDim, care: careNumber(c.screensaverCare), fill: fillNumber(c.screensaverFit), powerOff: c.screensaverPowerOff, recursive: saverRecursive(c), dimLevel: c.screensaverDimLevel,
+		aerialSources: c.screensaverAerialSources, aerialQuality: c.screensaverAerialQuality, aerialText: c.screensaverAerialText, lang: c.language};
 }
 
 export interface SaverOutcome {

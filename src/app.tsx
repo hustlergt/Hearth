@@ -59,7 +59,7 @@ import {startLogFile, writeReport, previousRunLines} from './lib/logfile';
 import {readStats, type SystemStats, getLogo, setLogo, closeLgHome} from './lib/system';
 import {readInputHookInUse} from './lib/hookguard';
 import {getHookStatus, hookMessage, installHomeHook, launchParams, logLine, markAliveSoon, reapplyHomeHook, removeHomeHook, stockHome} from './lib/homehook';
-import {SAVER_PHOTOS, SAVER_VIDEO} from './lib/saverconfig';
+import {SAVER_AERIAL, SAVER_PHOTOS, SAVER_VIDEO} from './lib/saverconfig';
 import {installSaver, reapplySaver, removeSaver, saverMessage, saverSettings, showSaver} from './lib/screensaver';
 import {cleanupMessage, removeTakeover} from './lib/takeover';
 import {getSamStatus, installSamHome, reapplySamHome, removeSamHome, samMessage, stockSam} from './lib/samhome';
@@ -1432,6 +1432,12 @@ export function App () {
 		});
 	}, []);
 
+	const onChooseSaverAerial = useCallback(() => {
+		updateConfig({...config, screensaverSource: SAVER_AERIAL});
+		setScreen('settings');
+		showToast(tt('app.screenSaverAerial'));
+	}, [config, showToast]);
+
 	const onChooseCity = useCallback((city: City) => {
 		updateConfig({...config, weather: {...config.weather, city, on: true}});
 		setScreen('settings');
@@ -1731,7 +1737,7 @@ export function App () {
 				/>
 			)}
 			{screen === 'homekey' && <HomeKey model={config.remoteModel} onModel={onRemoteModel} onClose={() => setScreen('settings')} onChanged={(code) => setSystemInfo((previous) => ({...previous, homeKey: code}))} onToast={showToast}  onAuto={onAutoMap} paused={!!notice} />}
-			{screen === 'saverpicker' && <Picker forSaver onBuiltinVideo={onChooseSaverVideo} onChoose={onChooseSaver} onClose={() => setScreen('settings')} />}
+			{screen === 'saverpicker' && <Picker forSaver onBuiltinVideo={onChooseSaverVideo} onAerial={onChooseSaverAerial} onChoose={onChooseSaver} onClose={() => setScreen('settings')} />}
 			{TRANSIT_ENABLED && screen === 'transit' && transitEntry && (() => {
 				const loc = transitEntry.which === 1 ? config.transit.loc1 : config.transit.loc2;
 				const value = transitEntry.field === 'station' ? (loc.station ? loc.station.name : '') : transitEntry.field === 'label' ? loc.label : transitEntry.field === 'lines' ? loc.lines : transitEntry.field === 'platform' ? loc.platform : loc.direction;

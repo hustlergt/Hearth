@@ -38,7 +38,7 @@ printf 'source=%s\ninterval=20\nshuffle=1\ndim=0\n' "$T/photos" > "$T/dir/settin
 check "on mounts ours over the app's main file" "$(run on)" applied
 check "the mount is over the manifest's main file" "$(cut -d' ' -f2 "$T/mounts")" "$T/app/qml/main.qml"
 check "the link was added" "$([ -L "$T/init/49" ] && echo yes)" yes
-check "pictures and GIFs with safe names are listed" "$(grep -c 'file://' "$T/dir/main.qml")" 3
+check "pictures and GIFs with safe names are listed" "$(grep -c '^ *"file://.*",$' "$T/dir/main.qml")" 3
 check "a GIF is listed" "$(grep -c 'anim.gif' "$T/dir/main.qml")" 1
 head -c 3000 /dev/zero > "$T/photos/big.gif"
 check "a big GIF is kept (no size cap)" "$(run apply >/dev/null; grep -c 'big.gif' "$T/dir/main.qml")" 1
@@ -57,6 +57,23 @@ printf 'source=@video\ninterval=20\nshuffle=1\ndim=0\n' > "$T/dir/settings"
 check "@video without the built-in file says no-video" "$(run apply)" no-video
 mkdir -p "$T/launcher/saver"; touch "$T/launcher/saver/builtin.mp4"
 check "@video with the built-in file plays only that" "$(run apply >/dev/null; grep -c 'builtin.mp4' "$T/dir/main.qml")" 1
+rm -rf "$T/launcher/saver"
+# Aerial: the list ships in saver/aerial; the bundled photos stay in the QML as the fall-back
+printf 'source=@aerial\n' > "$T/dir/settings"
+check "@aerial without the list says no-aerial" "$(run apply)" no-aerial
+mkdir -p "$T/launcher/saver/aerial"; echo '{"assets":[]}' > "$T/launcher/saver/aerial/videos.json"; echo '{}' > "$T/launcher/saver/aerial/strings-en.json"; echo '{}' > "$T/launcher/saver/aerial/strings-de.json"
+check "@aerial with the list is applied" "$(run apply)" applied
+check "@aerial turns Aerial on in the QML" "$(grep -E 'property bool aerial:' "$T/dir/main.qml" | sed 's/.*: //')" true
+check "@aerial keeps the bundled photos as the fall-back" "$(grep -c 'photo-0' "$T/dir/main.qml")" 2
+check "the Aerial defaults: all feeds, 4K SDR, place names, English" "$(grep -E 'property (var aerialSources|string aerialQuality|bool aerialText|string aerialLang):' "$T/dir/main.qml" | sed 's/.*: //' | tr '\n' ' ')" '[] "uhd" 1 === 1 "en" '
+check "the list is read from the launcher's folder" "$(grep -c "aerialBase: \"file://$T/launcher/saver/aerial/\"" "$T/dir/main.qml")" 1
+printf 'source=@aerial\naerialsrc=apple,robin\naerialq=hdr\naerialtext=0\nlang=de\n' > "$T/dir/settings"
+check "the Aerial settings are filled in" "$(run apply >/dev/null; grep -E 'property (var aerialSources|string aerialQuality|bool aerialText|string aerialLang):' "$T/dir/main.qml" | sed 's/.*: //' | tr '\n' ' ')" '["apple","robin"] "hdr" 0 === 1 "de" '
+printf 'source=@aerial\naerialsrc=ap"ple,,x;y\naerialq=8k\naerialtext=7\nlang=fr\n' > "$T/dir/settings"
+check "odd Aerial settings are cleaned: letters only, unknown quality is 4K SDR, a language without names is English" "$(run apply >/dev/null; grep -E 'property (var aerialSources|string aerialQuality|bool aerialText|string aerialLang):' "$T/dir/main.qml" | sed 's/.*: //' | tr '\n' ' ')" '["apple","xy"] "uhd" 1 === 1 "en" '
+printf 'source=@photos\n' > "$T/dir/settings"
+check "other sources leave Aerial off" "$(run apply >/dev/null; grep -E 'property bool aerial:' "$T/dir/main.qml" | sed 's/.*: //')" false
+check "no placeholder is left in the QML" "$(grep -c '__[A-Z_]*__' "$T/dir/main.qml")" 0
 rm -rf "$T/launcher/saver"
 printf 'source=%s\ninterval=20\nshuffle=1\ndim=0\n' "$T/photos" > "$T/dir/settings"; run apply >/dev/null
 printf 'source=%s\ninterval=20\nshuffle=1\ndim=0\npoweroff=30\n' "$T/photos" > "$T/dir/settings"

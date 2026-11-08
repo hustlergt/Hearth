@@ -17,8 +17,17 @@ const eq = (a, b, m) => { const ok = a === b; if (!ok) fail++; console.log(ok ? 
 
 eq(['applied\n[exit 0]', 'x\nunsupported', 'no-photos', 'garbage', ''].map(h.parseSaverResult).join(','), 'applied,unsupported,no-photos,failed,failed', 'the result word is found in the output');
 eq(h.parseShown('shown\n[exit 0]') && !h.parseShown('failed'), true, 'show: shown or not');
+const cfg0 = (saver) => ({screensaverSource: saver, wallpaper: {mode: 'gradient', path: ''}});
 const s = {source: '/media/internal/Pictures', interval: 20, shuffle: true, dim: false, care: 1, powerOff: 0};
-eq(h.settingsText(s), 'source=/media/internal/Pictures\ninterval=20\nshuffle=1\ndim=0\ncare=1\nfill=0\npoweroff=0\nrecursive=0\ndimlevel=40\n', 'the settings file text');
+eq(h.settingsText(s), 'source=/media/internal/Pictures\ninterval=20\nshuffle=1\ndim=0\ncare=1\nfill=0\npoweroff=0\nrecursive=0\ndimlevel=40\naerialsrc=\naerialq=uhd\naerialtext=1\nlang=en\n', 'the settings file text');
+eq(h.settingsText({...s, source: '@aerial', aerialSources: ['apple', 'jetson'], aerialQuality: 'hdr', aerialText: false, lang: 'pt-BR'}).split('\n').slice(-5).join(','), 'aerialsrc=apple,jetson,aerialq=hdr,aerialtext=0,lang=pt-BR,', 'the Aerial settings are written');
+eq(h.settingsText({...s, aerialSources: ['apple', 'x;rm'], aerialQuality: '8k', lang: "e'n"}).split('\n').slice(-5).join(','), 'aerialsrc=apple,aerialq=uhd,aerialtext=1,lang=en,', 'odd Aerial settings are cleaned');
+eq(h.settingsText({...s, source: '@aerial'}).split('\n')[0], 'source=@aerial', 'the Aerial source is written');
+eq(sc.saverIsSlideshow(cfg0('@aerial')), false, 'Aerial is not a slideshow (no speed or shuffle rows)');
+eq(sc.withAerialSource(['apple', 'amazon'], 'robin', true).join(','), 'apple,amazon,robin', 'a feed is switched on, in the usual order');
+eq(sc.withAerialSource(['apple', 'amazon'], 'apple', false).join(','), 'amazon', 'a feed is switched off');
+eq(sc.withAerialSource(['jetson'], 'jetson', false).join(','), 'jetson', 'the last feed stays on');
+eq(sc.AERIAL_QUALITY_VALUES.map(sc.aerialQualityText).join(','), 'Full HD,4K SDR,4K HDR / Dolby Vision', 'the quality choices');
 eq(h.settingsText({...s, source: '/media/internal/Bilder/ä.jpg'}).split('\n')[0], 'source=', 'a path with non-ASCII letters is left out (bundled photos are used)');
 eq(h.settingsText({...s, source: "/a/b'c"}).split('\n')[0], 'source=', 'a path with a quote is left out');
 eq(h.settingsText({...s, interval: 1}).split('\n')[1], 'interval=5', 'the interval is at least 5 s');
@@ -38,7 +47,7 @@ eq(sc.saverIsSlideshow(cfg('/media/x/Pics', {mode: 'gradient'})), true, 'a folde
 eq(sc.saverIsSlideshow(cfg('/media/x/a.mp4', {mode: 'folder', path: '/media/y'})), false, 'one video is not');
 eq(sc.saverIsSlideshow(cfg('', {mode: 'image', path: '/media/y/a.jpg'})), false, 'following a single wallpaper picture is not');
 eq(sc.saverSource(cfg('', {mode: 'folder', path: '/media/y'})), '/media/y', 'the saver follows the wallpaper folder');
-for (const r of ['applied', 'launcher-missing', 'files-missing', 'unsupported', 'no-target', 'no-photos', 'no-video', 'not-taken', 'off', 'failed']) eq(h.saverMessage(r, 'x').length > 10, true, `a message for ${r}`);
+for (const r of ['applied', 'launcher-missing', 'files-missing', 'unsupported', 'no-target', 'no-photos', 'no-video', 'no-aerial', 'not-taken', 'off', 'failed']) eq(h.saverMessage(r, 'x').length > 10, true, `a message for ${r}`);
 
 // replay the install on a fake folder: the steps write the real script and QML, and the last one mounts
 const sh = readFileSync(here('../src/screensaver/screensaver.sh'), 'utf8');
