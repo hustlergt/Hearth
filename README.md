@@ -2,7 +2,13 @@
 
 # Hearth for WebOS: a fast, calm home screen for webOS TVs
 
-> **This is Hearth 2.1.5 Transit edition**, an unofficial variant of [Hearth](https://github.com/rudra-avatar/Hearth) 2.1.5 with a live Basel tram and bus departure board ([Transit](docs/features/transit.md)). It is not a release of the original project. Everything else is the original Hearth 2.1.5. The in-app update check still looks at the original's releases: installing one of those replaces this edition and removes the board.
+> **This is an unofficial fork of [Hearth](https://github.com/rudra-avatar/Hearth) 2.1.5 by hustlergt**, not a release of the original project. It adds three things to the original Hearth 2.1.5:
+>
+> - **Transit board:** a live Basel tram and bus departure board on the home screen ([Transit](docs/features/transit.md)). Departures come from [transport.opendata.ch](https://transport.opendata.ch).
+> - **Aerial screen saver:** streamed aerial videos (Apple, Amazon Fire TV, Jetson Creative, Robin Fourcade) with place names, as a new choice in the screen saver ([Screen saver](docs/features/screensaver.md#aerial-videos)). The video list, place names and playback approach come from [custom-screensaver-aerial](https://github.com/aabytt/custom-screensaver-aerial) by aabytt (MIT); the videos are streamed from their owners and are not part of this project.
+> - **Lower memory and CPU use** on the TV (wallpaper, app icons, settings saves, transit board).
+>
+> Tested on an LG TV with webOS 26 (11.2.0). Branches: `feature/transit-aerial` has everything; `feature/transit-board` and `feature/aerial-saver` have one feature each; `main` follows the original. Hearth's own in-app update check still looks at the original's releases: installing one of those replaces this fork's build. Licences: Hearth's [MIT licence](LICENSE) and every credit in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) apply unchanged; the additions are under the same MIT licence.
 
 **Hearth for WebOS** is made only for TVs that run webOS.
 
