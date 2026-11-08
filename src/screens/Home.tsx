@@ -18,7 +18,7 @@ import {varScope} from '../lib/cssvars';
 import {moveGroup, movesFor} from '../lib/tileorder';
 import {createPointerGuard} from '../lib/pointerguard';
 import {t as tt} from '../i18n';
-import {TransitWidget} from '../components/TransitWidget';
+import {TransitWidget, transitSwitchable} from '../components/TransitWidget';
 import {TRANSIT_ENABLED} from '../config/features';
 import type {TransitConfig, TransitStation} from '../lib/transitconfig';
 import type {ThemeName} from '../theme/tokens';
@@ -148,6 +148,16 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 	const speedRef = useRef(appearance.scrollSpeed);
 	speedRef.current = appearance.scrollSpeed;
 	const shift = useShift(appearance.oledShift && !paused);
+	// The transit board can take the highlight (↑ from the top row of apps) when it has two locations taking turns: OK then
+	// switches location and starts the wait again; ↓ or Back gives the highlight back to the apps.
+	const switchable = TRANSIT_ENABLED && transitSwitchable(transit);
+	const [boardFocus, setBoardFocus] = useState(false);
+	const [boardToggle, setBoardToggle] = useState(0);
+	const boardRef = useRef(false);
+	boardRef.current = boardFocus && switchable;
+	const switchRef = useRef(switchable);
+	switchRef.current = switchable;
+	useEffect(() => { if (!switchable && boardFocus) setBoardFocus(false); }, [switchable]);          // eslint-disable-line react-hooks/exhaustive-deps
 	const moveRef = useRef(moveMode);                     // move mode: the key handler is registered once, so it reads refs
 	moveRef.current = moveMode;
 	const moveCb = useRef({onMovePick, onMoveStep, onMoveExit});
@@ -238,6 +248,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 		pendingKey.current = found ? null : homeKey || null;
 		setPosition(found || initialPosition());
 		setOpen(false);
+		setBoardFocus(false);
 		if (moveRef.current && moveCb.current.onMoveExit) moveCb.current.onMoveExit();       // Hearth came back to the front: the move mode ends
 	}, [wake]);
 	useEffect(() => {
@@ -264,6 +275,10 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 		pendingKey.current = null;                            // the person is moving: a late app list no longer moves the highlight
 		if (key !== 'down') deadRef.current = 0;
 		if (quietRef.current) return true;                    // the key that wakes the apps does nothing else
+		if (boardRef.current && !moveRef.current) {           // the transit board has the highlight: ↓ or Back return to the apps, OK switches (below)
+			if (key === 'down' || key === 'back') setBoardFocus(false);
+			return true;
+		}
 		const mv = moveRef.current;
 		if (mv) {
 			const cb = moveCb.current;
@@ -305,6 +320,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 			if (nx.row !== cur.row) deadRef.current = 0;
 			else if (!(event && event.repeat) && ++deadRef.current >= 5) { deadRef.current = 0; deadCall.current(); }
 		}
+		if (key === 'up' && switchRef.current && !moveRef.current && clampPosition(sizes, posRef.current).row === 0) { setBoardFocus(true); return true; }       // ↑ from the top row: the transit board
 		// functional updates, so quick repeated presses never act on a stale position
 		if (key === 'left' || key === 'right' || key === 'up' || key === 'down') setPosition((p) => movePosition(sizes, p, key));
 		else if (key === 'back') onBack();        // Back opens the Recent apps panel
@@ -314,6 +330,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 	useKeys(handleKey, active);
 	useOkPress({
 		onPress: () => {
+			if (boardRef.current && !quietRef.current && !moveRef.current) { setBoardToggle((n) => n + 1); return; }       // the other location, at once
 			if (!selectedItem || quietRef.current) return;
 			const mv = moveRef.current;
 			if (mv) {                                          // move mode: OK picks the tile up or puts it down
@@ -325,7 +342,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 			}
 			onActivate(selectedItem);
 		},
-		onLongPress: () => { if (selectedItem && onLongPress && !quietRef.current && !moveRef.current) onLongPress(selectedItem); }
+		onLongPress: () => { if (selectedItem && onLongPress && !quietRef.current && !moveRef.current && !boardRef.current) onLongPress(selectedItem); }
 	}, active);
 
 	// The row's sizes are set on the row itself (not on :root), so the Settings grid keeps its own.
@@ -357,7 +374,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 		<div class={`screen${active ? '' : ' screen--away'}${shift ? ' screen--shift' : ''}${shiftVars.cls ? ' ' + shiftVars.cls : ''}`} style={shiftVars.css || undefined}>
 			{moveMode && <div class="movehint"><div class="movehint__main">{tt('move.hint')}</div><div class="movehint__sub">{tt('move.hintBack')}</div></div>}
 			{appearance.clock.show && !moveMode && <Clock now={now} format={timeFormat} config={appearance.clock} weather={weather} />}
-			{TRANSIT_ENABLED && transit && !moveMode && onTransitStation && <TransitWidget config={transit} clock={appearance.clock} theme={theme || 'black'} paused={paused} shift={shift} onStation={onTransitStation} />}
+			{TRANSIT_ENABLED && transit && !moveMode && onTransitStation && <TransitWidget config={transit} clock={appearance.clock} theme={theme || 'black'} paused={paused} shift={shift} onStation={onTransitStation} focused={boardFocus && switchable && active} toggle={boardToggle} />}
 			<div class={classes} style={rowStyle}>
 				{sizes.map((size, r) => {
 					const start = offsets[r];
@@ -365,7 +382,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 						<Row
 							key={r}
 							items={items.slice(start, start + size)}
-							focused={r === at.row}
+							focused={r === at.row && !(boardFocus && switchable)}
 							selected={at.cols[r]}
 							onSelect={(col) => { pendingKey.current = null; setPosition({row: r, cols: at.cols.map((c, i) => (i === r ? col : c))}); }}
 							onActivate={(col) => { if (!moveRef.current) onActivate(items[start + col]); }}

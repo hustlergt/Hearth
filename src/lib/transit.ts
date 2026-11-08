@@ -20,6 +20,17 @@ export interface Departure {
 	ts: number;
 	/** minutes late (0 when the service does not know) */
 	delay: number;
+	/** the stop's platform letter ("A".."K"), '' when not given */
+	platform: string;
+	/** the service gave a delay (real-time data); false = timetable only */
+	live: boolean;
+}
+
+/** What one location shows: the same three filters as its settings. */
+export interface DepartureFilter {
+	lines: string;
+	direction: string;
+	platform: string;
 }
 
 export interface Board {
@@ -39,7 +50,7 @@ export const LIMIT_FILTERED = 40;
 
 /** Only these fields are asked for: a full reply is about 130 KB for 15 departures (each lists every later stop); this is about 3 KB. */
 const FIELDS = ['station/id', 'station/name', 'stationboard/number', 'stationboard/to', 'stationboard/category', 'stationboard/operator',
-	'stationboard/stop/departureTimestamp', 'stationboard/stop/delay'];
+	'stationboard/stop/departureTimestamp', 'stationboard/stop/delay', 'stationboard/stop/platform'];
 
 const q = (name: string, value: string): string => encodeURIComponent(name) + '=' + encodeURIComponent(value);
 
@@ -69,7 +80,8 @@ export function parseBoard (json: string, stationId: string, now: number, limit:
 			const line = str(e && e.number).trim();
 			if (ts === null || !line) return;
 			const delay = stop ? num(stop.delay) : null;
-			departures.push({line: line.slice(0, 8), to: str(e.to).slice(0, 80), category: str(e.category).slice(0, 4), operator: str(e.operator).slice(0, 12), ts, delay: delay !== null && delay > 0 ? Math.round(delay) : 0});
+			departures.push({line: line.slice(0, 8), to: str(e.to).slice(0, 80), category: str(e.category).slice(0, 4), operator: str(e.operator).slice(0, 12), ts,
+				delay: delay !== null && delay > 0 ? Math.round(delay) : 0, platform: str(stop && stop.platform).trim().slice(0, 6), live: delay !== null});
 		});
 		return {stationId, stationName: station, departures, at: now, limit};
 	} catch {
@@ -107,20 +119,24 @@ export function fold (s: string): string {
 	return typeof lower.normalize === 'function' ? lower.normalize('NFD').replace(/[̀-ͯ]/g, '') : lower;
 }
 
-/** "1, 8, N11" -> ["1", "8", "n11"] */
+/** "1, 8, N11" -> ["1", "8", "n11"] (also used for platforms: "C, D") */
 export function parseLines (filter: string): string[] {
 	return filter.split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
 }
 
-export function isFiltered (lines: string, direction: string): boolean {
-	return parseLines(lines).length > 0 || direction.trim().length > 0;
+export function isFiltered (f: DepartureFilter): boolean {
+	return parseLines(f.lines).length > 0 || f.direction.trim().length > 0 || parseLines(f.platform).length > 0;
 }
 
-/** Departures that pass the line filter (exact line number, any case) and the direction filter (part of the destination, accents ignored). */
-export function filterDepartures (list: Departure[], lines: string, direction: string): Departure[] {
-	const wanted = parseLines(lines);
-	const dir = fold(direction.trim());
-	return list.filter((d) => (wanted.length === 0 || wanted.indexOf(d.line.toLowerCase()) !== -1) && (!dir || fold(d.to).indexOf(dir) !== -1));
+/** Departures that pass the line filter (exact line number, any case), the direction filter (part of the destination, accents
+ *  ignored) and the platform filter (exact platform letters, any case). */
+export function filterDepartures (list: Departure[], f: DepartureFilter): Departure[] {
+	const wanted = parseLines(f.lines);
+	const platforms = parseLines(f.platform);
+	const dir = fold(f.direction.trim());
+	return list.filter((d) => (wanted.length === 0 || wanted.indexOf(d.line.toLowerCase()) !== -1)
+		&& (platforms.length === 0 || platforms.indexOf(d.platform.toLowerCase()) !== -1)
+		&& (!dir || fold(d.to).indexOf(dir) !== -1));
 }
 
 /** When it really leaves: the timetable time plus the delay, in ms. */
@@ -134,11 +150,37 @@ export function minutesLeft (d: Departure, now: number): number {
 }
 
 /** What the board shows: filtered, without the ones that have left, sorted by when they really leave, the first `rows`. */
-export function upcoming (list: Departure[], lines: string, direction: string, rows: number, now: number): Departure[] {
-	return filterDepartures(list, lines, direction)
+export function upcoming (list: Departure[], f: DepartureFilter, rows: number, now: number): Departure[] {
+	return filterDepartures(list, f)
 		.filter((d) => leavesAt(d) >= now)
 		.sort((a, b) => leavesAt(a) - leavesAt(b))
 		.slice(0, rows);
+}
+
+/** The destination without the stop's own town: at "Basel, Barfüsserplatz", "Basel, Neuweilerstrasse" reads "Neuweilerstrasse";
+ *  another town ("Weil am Rhein, Bahnhof/Zentrum") is kept, since that is the useful part. Case and accents are ignored. */
+export function shortDestination (to: string, stationName: string | null | undefined): string {
+	const comma = stationName ? stationName.indexOf(',') : -1;
+	if (!stationName || comma <= 0) return to;
+	const town = stationName.slice(0, comma).trim();
+	const prefix = town + ',';
+	if (fold(to.slice(0, prefix.length)) !== fold(prefix)) return to;
+	const rest = to.slice(prefix.length).trim();
+	return rest || to;
+}
+
+/** Marquee for a name `overflow` px too wide for its column: still for `pauseMs`, then sliding left at `speed` px/s until its end
+ *  shows, still again, then back to the start. Returns the offset (px, 0 or negative) at `elapsedMs`. */
+export const MARQUEE_SPEED = 45;
+export const MARQUEE_PAUSE_MS = 2500;
+export function marqueeOffset (elapsedMs: number, overflow: number, speed = MARQUEE_SPEED, pauseMs = MARQUEE_PAUSE_MS): number {
+	if (overflow <= 0) return 0;
+	const travel = overflow / speed * 1000;
+	const cycle = pauseMs + travel + pauseMs;
+	const t = ((elapsedMs % cycle) + cycle) % cycle;
+	if (t < pauseMs) return 0;
+	if (t < pauseMs + travel) return -Math.round((t - pauseMs) / travel * overflow);
+	return -Math.round(overflow);
 }
 
 /** "3'" or "3 min" (callers show an icon for 0). */
@@ -163,7 +205,8 @@ function cleanBoard (v: unknown): Board | null {
 	const b = v as Record<string, unknown>;
 	if (typeof b.stationId !== 'string' || num(b.at) === null || !Array.isArray(b.departures)) return null;
 	const departures = (b.departures as Record<string, unknown>[]).filter((d) => d && typeof d.line === 'string' && num(d.ts) !== null).map((d) => ({
-		line: d.line as string, to: str(d.to), category: str(d.category), operator: str(d.operator), ts: d.ts as number, delay: num(d.delay) || 0
+		line: d.line as string, to: str(d.to), category: str(d.category), operator: str(d.operator), ts: d.ts as number, delay: num(d.delay) || 0,
+		platform: str(d.platform), live: d.live !== false          // a copy saved before these fields: shown as real-time, without platforms
 	}));
 	return {stationId: b.stationId, stationName: typeof b.stationName === 'string' ? b.stationName : null, departures, at: b.at as number, limit: num(b.limit) || 0};
 }

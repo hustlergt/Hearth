@@ -273,7 +273,8 @@ function transitLocationRows (n: 1 | 2): PrefDef[] {
 		{id: `transit${n}Station`, tab: 'transit', kind: 'action', visible: own, text: (c) => { const s = locOf(c, n).station; return s ? s.name : td('pref.notSet'); }},
 		{id: `transit${n}Label`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).label)},
 		{id: `transit${n}Lines`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).lines)},
-		{id: `transit${n}Dir`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).direction)}
+		{id: `transit${n}Dir`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).direction)},
+		{id: `transit${n}Platform`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).platform)}
 	];
 }
 const transitColorText = (v: string): string => (v === 'station' || v === 'lines' || v === 'widget' ? td(`transit.color.${v}`) : colorInfo(v as ClockColor).label);
@@ -285,6 +286,9 @@ const TRANSIT_PREFS: PrefDef[] = [
 	{...choice('transitCycle', 'transit', TRANSIT_CYCLE_VALUES, (c) => c.transit.cycleSec, (c, v) => tr(c, {cycleSec: v}), (v) => (v === 0 ? td('transit.cycleOff') : td('time.seconds', {n: v}))), visible: (c) => c.transit.loc2On},
 	choice('transitRows', 'transit', TRANSIT_ROW_VALUES, (c) => c.transit.rows, (c, v) => tr(c, {rows: v}), (v) => String(v)),
 	choice('transitCountdown', 'transit', ['tick', 'min'] as const, (c) => c.transit.countdown, (c, v) => tr(c, {countdown: v}), (v) => (v === 'min' ? '3 min' : '3\'')),
+	toggle('transitPlatform', 'transit', (c) => c.transit.showPlatform, (c, v) => tr(c, {showPlatform: v})),
+	toggle('transitShort', 'transit', (c) => c.transit.shortNames, (c, v) => tr(c, {shortNames: v})),
+	toggle('transitScroll', 'transit', (c) => c.transit.scrollNames, (c, v) => tr(c, {scrollNames: v})),
 	choice('transitColor', 'transit', TRANSIT_COLOR_IDS, (c) => c.transit.color, (c, v) => tr(c, {color: v}), transitColorText),
 	choice('transitAlign', 'transit', CLOCK_ALIGNS, (c) => c.transit.align, (c, v) => tr(c, {align: v}), (v) => alignText(v)),
 	choice('transitLeft', 'transit', TRANSIT_LEFT_VALUES, (c) => c.transit.left, (c, v) => tr(c, {left: v}), (v) => `${v}%`),
@@ -630,9 +634,9 @@ const LAYOUT: [PrefTab, string, string[]][] = [
 	['clock', 'Widget look', ['clockSize', 'clockFont', 'clockWeight', 'clockTop', 'clockLeft', 'clockAlign', 'clockColor', 'clockShadow', 'clockScrim', 'clockOpacity']],
 	['clock', 'Weather', ['weatherOn', 'weatherUnit', 'weatherCity', 'weatherCityName', 'weatherRange']],
 	['transit', '', ['transitOn']],
-	['transit', 'Location 1', ['transit1Station', 'transit1Label', 'transit1Lines', 'transit1Dir']],
-	['transit', 'Location 2', ['transit2On', 'transit2Station', 'transit2Label', 'transit2Lines', 'transit2Dir', 'transitCycle']],
-	['transit', 'Board', ['transitRows', 'transitCountdown', 'transitColor', 'transitSize', 'transitFont', 'transitOpacity']],
+	['transit', 'Location 1', ['transit1Station', 'transit1Label', 'transit1Lines', 'transit1Dir', 'transit1Platform']],
+	['transit', 'Location 2', ['transit2On', 'transit2Station', 'transit2Label', 'transit2Lines', 'transit2Dir', 'transit2Platform', 'transitCycle']],
+	['transit', 'Board', ['transitRows', 'transitCountdown', 'transitPlatform', 'transitShort', 'transitScroll', 'transitColor', 'transitSize', 'transitFont', 'transitOpacity']],
 	['transit', 'Position', ['transitAlign', 'transitLeft', 'transitTop']],
 	['wallpaper', '', ['wallpaper', 'wallpaperFit', 'interval', 'shuffle', 'wallpaperOpacity', 'fadeStrength']],   // P66b: few rows, no groups (was Background and Picture)
 	['saver', '', ['screensaver', 'screensaverPictures', 'screensaverInterval', 'screensaverShuffle', 'screensaverFit', 'screensaverCare', 'screensaverDim', 'screensaverPowerOff', 'screensaverShow']],

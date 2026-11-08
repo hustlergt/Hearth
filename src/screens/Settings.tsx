@@ -32,7 +32,12 @@ export interface SettingsTab {
 	edit?: boolean;
 	/** a line of explanation under the buttons (grid tabs) */
 	note?: string;
+	/** a live preview is drawn right of the rows (Widget, Transit): the rows panel stays narrower than the tab bar */
+	preview?: boolean;
 }
+
+/** Widest rows panel on a tab with a preview: the tab bar's width when it had six tabs (before Transit), so the preview keeps its room. */
+const PREVIEW_PANEL_W = 1376;
 
 interface Props {
 	tabs: SettingsTab[];
@@ -364,7 +369,7 @@ export function Settings ({tabs, active, onToggle, onRecent, onOption, onRefresh
 						selected={optionIndex}
 						onSelect={(i) => { setZone('content'); setOptionIndex(i); }}
 						onActivate={(i) => { setZone('content'); onOption(options[i].id); }}
-						width={panelWidth}
+						width={current && current.preview && panelWidth ? Math.min(panelWidth, PREVIEW_PANEL_W) : panelWidth}
 					/>
 				)}
 				{about && <p class="settings__about">{about}</p>}

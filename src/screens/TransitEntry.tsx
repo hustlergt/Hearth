@@ -5,7 +5,7 @@ import {searchStations} from '../lib/transitnet';
 import type {TransitStation} from '../lib/transitconfig';
 import {t as tt} from '../i18n';
 
-export type TransitField = 'station' | 'label' | 'lines' | 'direction';
+export type TransitField = 'station' | 'label' | 'lines' | 'direction' | 'platform';
 
 interface Props {
 	field: TransitField;

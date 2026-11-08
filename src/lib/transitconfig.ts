@@ -20,6 +20,8 @@ export interface TransitLocation {
 	lines: string;
 	/** part of a destination's name ('' = every direction) */
 	direction: string;
+	/** comma-separated platform letters, e.g. "C" ('' = every platform) */
+	platform: string;
 }
 
 /** 'station' = BVB station amber; 'lines' = each line's own colour; 'widget' = the clock's colour; or one of the plain widget colours */
@@ -36,6 +38,12 @@ export interface TransitConfig {
 	cycleSec: number;
 	rows: number;
 	countdown: TransitCountdown;
+	/** a column with each departure's platform letter */
+	showPlatform: boolean;
+	/** destinations without the stop's own town ("Basel, ") */
+	shortNames: boolean;
+	/** names too long for the column slide slowly to their end and back (instead of ending in "…") */
+	scrollNames: boolean;
 	color: TransitColor;
 	align: ClockAlign;
 	/** % of the screen width (the board's left edge, centre or right edge, following `align`), like the clock's position */
@@ -70,7 +78,7 @@ function steps (min: number, max: number, step: number): number[] {
 export const DEFAULT_STOP_1 = 'Basel, Barfüsserplatz';
 export const DEFAULT_STOP_2 = 'Basel, Bahnhof SBB';
 
-const location = (name: string): TransitLocation => ({station: {id: '', name}, label: '', lines: '', direction: ''});
+const location = (name: string): TransitLocation => ({station: {id: '', name}, label: '', lines: '', direction: '', platform: ''});
 
 export const DEFAULT_TRANSIT: TransitConfig = {
 	on: false,             // off on a fresh install, like the weather
@@ -80,6 +88,9 @@ export const DEFAULT_TRANSIT: TransitConfig = {
 	cycleSec: 10,
 	rows: 4,
 	countdown: 'tick',
+	showPlatform: false,
+	shortNames: true,
+	scrollNames: true,
 	color: 'station',
 	align: 'right',
 	left: 96,
@@ -107,7 +118,8 @@ function cleanLocation (v: unknown, def: TransitLocation): TransitLocation {
 		station: l.station === undefined ? (def.station ? {...def.station} : null) : cleanStation(l.station),
 		label: text(l.label, 60),
 		lines: text(l.lines, 80),
-		direction: text(l.direction, 60)
+		direction: text(l.direction, 60),
+		platform: text(l.platform, 30)
 	};
 }
 
@@ -124,6 +136,9 @@ export function cleanTransit (saved: unknown): TransitConfig {
 		cycleSec: oneOf(TRANSIT_CYCLE_VALUES, t.cycleSec, d.cycleSec),
 		rows: oneOf(TRANSIT_ROW_VALUES, t.rows, d.rows),
 		countdown: t.countdown === 'min' ? 'min' : 'tick',
+		showPlatform: t.showPlatform === true,
+		shortNames: t.shortNames !== false,
+		scrollNames: t.scrollNames !== false,
 		color: oneOf(TRANSIT_COLOR_IDS, t.color, d.color),
 		align: t.align === 'left' || t.align === 'center' || t.align === 'right' ? t.align : d.align,
 		left: oneOf(TRANSIT_LEFT_VALUES, t.left, d.left),

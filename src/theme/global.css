@@ -278,6 +278,9 @@ html, body {
 	-webkit-box-sizing: border-box; box-sizing: border-box;
 }
 .transit__to { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Scroll long names: no "…"; the inner text is moved from script (TransitWidget) when it is wider than the column */
+.transit__to--scroll { text-overflow: clip; }
+.transit__to-text { display: inline-block; }
 .transit__delay { -webkit-flex: 0 0 auto; flex: 0 0 auto; width: 2.4em; text-align: right; }
 .transit__delay-badge {
 	display: inline-block;
@@ -299,6 +302,26 @@ html, body {
 	-webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum";
 }
 .transit__min--wide { width: 3.6em; }
+/* timetable time only (the service gave no delay): dimmed */
+.transit__min--sched { opacity: 0.5; }
+.transit__platform { -webkit-flex: 0 0 auto; flex: 0 0 auto; width: 1.5em; text-align: center; font-size: 0.75em; font-weight: 600; opacity: 0.6; }
+/* the rows area is as tall as the chosen number of rows (min-height inline), so a one-line message does not shrink the board */
+.transit__body { position: relative; }
+/* the home screen's highlight on the board (↑ from the apps): a frame in the board's own colour */
+.transit--focused::before {
+	content: '';
+	position: absolute;
+	left: -0.55em; right: -0.55em; top: -0.45em; bottom: -0.35em;
+	border: 3px solid currentColor;
+	border-radius: 0.45em;
+	opacity: 0.85;
+	pointer-events: none;
+}
+/* Settings -> Transit preview (TransitPreview.tsx): the board scaled to the free space, and a miniature screen under it */
+.transit-preview { position: absolute; top: 290px; z-index: 5; pointer-events: none; }
+.transit-preview__board { position: relative; overflow: hidden; }
+.transit-preview__screen { position: relative; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; background: rgba(255, 255, 255, 0.03); }
+.transit-preview__strip { position: absolute; left: 0; top: 0; -webkit-transform-origin: 0 0; transform-origin: 0 0; }
 .transit__now {
 	width: 1.05em; height: 1.05em;
 	vertical-align: -0.12em;

@@ -4,7 +4,7 @@ import type {ThemeName} from '../theme/tokens';
 import {THEMES} from '../theme/tokens';
 import {colorInfo, inkIsDark, validInk, type ClockColor} from '../lib/clockcolor';
 import {fontFamily} from '../lib/clockfont';
-import {countdownText, isFiltered, LIMIT_FILTERED, LIMIT_PLAIN, minutesLeft, readTransitCache, upcoming, usableBoard, writeTransitCache, type Board, type Departure} from '../lib/transit';
+import {countdownText, isFiltered, LIMIT_FILTERED, LIMIT_PLAIN, marqueeOffset, minutesLeft, readTransitCache, shortDestination, upcoming, usableBoard, writeTransitCache, type Board, type Departure} from '../lib/transit';
 import {resolveStation, startTransitPoller, type PollTarget} from '../lib/transitnet';
 import {lineColor, STATION_AMBER} from '../lib/transitcolors';
 import type {TransitConfig, TransitLocation, TransitStation} from '../lib/transitconfig';
@@ -21,12 +21,20 @@ interface Props {
 	paused?: boolean;
 	/** OLED shift offset (px), null = off */
 	shift?: {x: number; y: number} | null;
-	/** a default stop's id was looked up: the app saves it */
-	onStation: (which: 1 | 2, station: TransitStation) => void;
+	/** a default stop's id was looked up: the app saves it (not used by the preview) */
+	onStation?: (which: 1 | 2, station: TransitStation) => void;
+	/** the home screen's highlight is on the board (↑ from the apps): drawn with a frame */
+	focused?: boolean;
+	/** changes each time OK is pressed on the focused board: the other location shows and the timer starts again */
+	toggle?: number;
+	/** Settings preview: nothing is fetched; the saved boards are shown (sample rows when there are none) */
+	preview?: boolean;
 }
 
 /** Base text size of the rows at 100 %, px at 1080p. */
 const ROW_PX = 30;
+/** Height of one row, em (the body is always as tall as the chosen number of rows, so the board does not jump when cycling). */
+const ROW_EM = 1.55;
 const TICK_MS = 10000;
 const DELAY_INK = '#FF7A59';
 
@@ -58,13 +66,22 @@ function lookOf (config: TransitConfig, clock: ClockConfig, theme: ThemeName): L
 	return {text: widget, badge: () => preset};
 }
 
+/** Settings preview without saved data: a few made-up departures (Barfüsserplatz-like), so colours and sizes can be judged. */
+function sampleBoard (id: string, now: number): Board {
+	const t = Math.floor(now / 1000);
+	const rows: [string, string, string, number, number][] = [['8', 'Weil am Rhein, Bahnhof/Zentrum', 'D', 0, 1], ['14', 'Pratteln, Schlossstrasse', 'C', 2, 3], ['3', 'Birsfelden, Hard', 'A', 0, 6],
+		['11', 'Basel, St-Louis Grenze', 'D', 0, 9], ['6', 'Riehen, Grenze', 'D', 1, 12], ['16', 'Basel, Bruderholz', 'C', 0, 15]];
+	return {stationId: id, stationName: 'Preview', at: now, limit: LIMIT_PLAIN,
+		departures: rows.map(([line, to, platform, delay, min], i) => ({line, to, platform, delay, category: 'T', operator: 'BVB', ts: t + min * 60 + 20 - delay * 60, live: i !== 2}))};
+}
+
 type View =
 	| {kind: 'rows'; rows: Departure[]; stale: boolean}
 	| {kind: 'message'; text: string; stale?: boolean};
 
 /** The departure board (Settings → Transit): one or two stops, alternating in the same place. The data is fetched once a
  *  minute; the minutes are counted down here, from the departure time and the delay, every few seconds. */
-export function TransitWidget ({config, clock, theme, paused, shift, onStation}: Props) {
+export function TransitWidget ({config, clock, theme, paused, shift, onStation, focused, toggle, preview}: Props) {
 	const [boards, setBoards] = useState<Record<string, Board>>(readTransitCache);
 	const [errors, setErrors] = useState<Record<string, boolean>>({});
 	const [resolveFailed, setResolveFailed] = useState<Record<string, boolean>>({});
@@ -77,7 +94,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 	const shown: TransitLocation[] = cycling ? locs : [config.loc1];
 	const targets: PollTarget[] = [];
 	shown.forEach((l) => {
-		if (l.station && l.station.id && !targets.some((t) => t.id === l.station!.id)) targets.push({id: l.station.id, limit: isFiltered(l.lines, l.direction) ? LIMIT_FILTERED : LIMIT_PLAIN});
+		if (l.station && l.station.id && !targets.some((t) => t.id === l.station!.id)) targets.push({id: l.station.id, limit: isFiltered(l) ? LIMIT_FILTERED : LIMIT_PLAIN});
 	});
 	const targetKey = targets.map((t) => t.id + ':' + t.limit).join(',');
 	const keepRef = useRef<string[]>([]);
@@ -97,7 +114,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 	useEffect(() => () => { alive.current = false; }, []);
 	const [retryTick, setRetryTick] = useState(0);
 	useEffect(() => {
-		if (!pending.length || paused) return;
+		if (preview || !pending.length || paused) return;
 		pending.forEach((p) => {
 			const key = p.which + ':' + p.name;
 			if (asking.current[key]) return;
@@ -105,7 +122,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 			resolveStation(p.name, allowShell).then((s) => {
 				asking.current[key] = false;
 				if (!alive.current) return;
-				if (s) { log(`transit: stop "${p.name}" is ${s.id}`); onStationRef.current(p.which, s); }
+				if (s) { log(`transit: stop "${p.name}" is ${s.id}`); if (onStationRef.current) onStationRef.current(p.which, s); }
 				else setResolveFailed((r) => ({...r, [p.name]: true}));
 			}, () => {
 				asking.current[key] = false;
@@ -118,7 +135,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 
 	// Fetch the boards once a minute (paused in the background; back-off after failures, the saved boards stay shown).
 	useEffect(() => {
-		if (!targets.length || paused) return undefined;
+		if (preview || !targets.length || paused) return undefined;
 		const start = Date.now();
 		const fresh = targets.every((t) => { const b = boards[t.id]; return !!b && b.limit >= t.limit && start - b.at < 30000 && start >= b.at; });
 		const hasAny = targets.some((t) => !!usableBoard(boards[t.id], start));
@@ -139,35 +156,96 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 		}, fresh ? 30000 : hasAny ? 2000 : 0);
 	}, [targetKey, paused]);          // eslint-disable-line react-hooks/exhaustive-deps
 
-	// The countdown is worked out here, from the departure time and the delay.
+	// The countdown is worked out here, from the departure time and the delay. The preview also reads the saved boards again
+	// (the home screen's board, still running underneath Settings, keeps them fresh).
 	useEffect(() => {
 		if (paused) return undefined;
 		setNow(Date.now());
-		const timer = window.setInterval(() => setNow(Date.now()), TICK_MS);
+		const timer = window.setInterval(() => { setNow(Date.now()); if (preview) setBoards(readTransitCache()); }, TICK_MS);
 		return () => window.clearInterval(timer);
-	}, [paused]);
+	}, [paused]);          // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Location 1 and 2 take turns.
+	// Location 1 and 2 take turns; OK on the focused board switches at once and starts the wait again.
+	useEffect(() => { if (!cycling) setPage(0); }, [cycling]);
+	const lastToggle = useRef(toggle);
 	useEffect(() => {
-		setPage(0);
+		if (toggle === lastToggle.current) return;
+		lastToggle.current = toggle;
+		if (cycling) setPage((p) => (p + 1) % 2);
+	}, [toggle]);          // eslint-disable-line react-hooks/exhaustive-deps
+	useEffect(() => {
 		if (!cycling || paused) return undefined;
 		const timer = window.setInterval(() => setPage((p) => (p + 1) % 2), config.cycleSec * 1000);
 		return () => window.clearInterval(timer);
-	}, [cycling, config.cycleSec, paused]);
+	}, [cycling, config.cycleSec, paused, toggle]);
+
+	// Long destinations slide to their end and back. Driven from script (Hearth's legacy CSS engine drops @keyframes, so a CSS
+	// animation would not move on webOS 3.x): the offsets are written straight onto the elements, without redrawing the board;
+	// the widths are measured about once a second; with nothing too long, it only looks again each second.
+	const rootRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const root = rootRef.current;
+		if (!root) return undefined;
+		const setX = (el: HTMLElement, x: number) => {
+			const v = x ? `translate3d(${x}px, 0, 0)` : '';
+			if (el.style.transform === v) return;
+			el.style.transform = v;
+			el.style.webkitTransform = v;
+		};
+		const texts = () => root.querySelectorAll('.transit__to-text');
+		if (!config.scrollNames || paused) { const all = texts(); for (let i = 0; i < all.length; i++) setX(all[i] as HTMLElement, 0); return undefined; }
+		let stopped = false;
+		let raf = 0;
+		let timer = 0;
+		let items: {el: HTMLElement; over: number}[] = [];
+		let measuredAt = 0;
+		const start = Date.now();
+		const shownPage = (el: HTMLElement): boolean => {          // not on the page that is fading out (no Element.closest on Chromium 38)
+			for (let n: HTMLElement | null = el; n && n !== root; n = n.parentNode as HTMLElement | null) if (n.className && String(n.className).indexOf('transit__page--off') !== -1) return false;
+			return true;
+		};
+		const measure = () => {
+			items = [];
+			const all = texts();
+			for (let i = 0; i < all.length; i++) {
+				const el = all[i] as HTMLElement;
+				const box = el.parentNode as HTMLElement;
+				const over = el.offsetWidth - box.clientWidth;
+				if (over > 1 && shownPage(el)) items.push({el, over}); else setX(el, 0);
+			}
+			measuredAt = Date.now();
+		};
+		const frame = () => {
+			if (stopped) return;
+			const now = Date.now();
+			if (now - measuredAt > 1000) measure();
+			for (const it of items) setX(it.el, marqueeOffset(now - start, it.over));
+			if (items.length) raf = window.requestAnimationFrame(frame); else timer = window.setTimeout(frame, 1000);
+		};
+		measure();
+		frame();
+		return () => { stopped = true; window.cancelAnimationFrame(raf); window.clearTimeout(timer); };
+	}, [config.scrollNames, paused, page]);
 
 	const look = lookOf(config, clock, theme);
 	const views: View[] = useMemo(() => shown.map((l): View => {
 		const st = l.station;
+		if (preview) {
+			const saved = st && st.id ? usableBoard(boards[st.id], now) : null;
+			const board = saved && saved.stationName !== null ? saved : sampleBoard(st ? st.id : '', now);
+			const rows = upcoming(board.departures, l, config.rows, now);
+			return rows.length ? {kind: 'rows', rows, stale: false} : {kind: 'message', text: isFiltered(l) ? tt('transit.noMatch') : tt('transit.noDepartures')};
+		}
 		if (!st) return {kind: 'message', text: tt('transit.notSet')};
 		if (!st.id) return {kind: 'message', text: resolveFailed[st.name] ? tt('transit.unavailable') : tt('transit.loading')};
 		const board = usableBoard(boards[st.id], now);
 		const failed = !!errors[st.id];
 		if (!board) return {kind: 'message', text: failed ? tt('transit.unavailable') : tt('transit.loading'), stale: failed};
 		if (board.stationName === null) return {kind: 'message', text: tt('transit.notFound')};
-		const rows = upcoming(board.departures, l.lines, l.direction, config.rows, now);
-		if (!rows.length) return {kind: 'message', text: isFiltered(l.lines, l.direction) ? tt('transit.noMatch') : tt('transit.noDepartures'), stale: failed};
+		const rows = upcoming(board.departures, l, config.rows, now);
+		if (!rows.length) return {kind: 'message', text: isFiltered(l) ? tt('transit.noMatch') : tt('transit.noDepartures'), stale: failed};
 		return {kind: 'rows', rows, stale: failed};
-	}), [boards, errors, resolveFailed, now, config, shown.length]);          // eslint-disable-line react-hooks/exhaustive-deps
+	}), [boards, errors, resolveFailed, now, config, shown.length, preview]);          // eslint-disable-line react-hooks/exhaustive-deps
 
 	// ----- look -----
 	const px = Math.round(ROW_PX * config.size / 100);
@@ -197,6 +275,8 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 
 	const label = (l: TransitLocation): string => l.label.trim() || (l.station ? l.station.name : tt('transit.title'));
 	const kindOf = (v: View): 'tram' | 'bus' => (v.kind === 'rows' && v.rows.every((d) => d.category === 'B') ? 'bus' : 'tram');
+	const bodyStyle = {minHeight: `${(config.rows * ROW_EM).toFixed(2)}em`};
+	const destination = (l: TransitLocation, d: Departure): string => (config.shortNames ? shortDestination(d.to, l.station ? l.station.name : null) : d.to);
 
 	const renderPage = (l: TransitLocation, v: View, i: number) => (
 		<div key={i} class={`transit__page${cycling ? (i === page ? ' transit__page--on' : ' transit__page--off') : ''}`}>
@@ -207,30 +287,40 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation}:
 				{cycling && <span class="transit__pager">{`${i + 1} / ${shown.length}`}</span>}
 			</div>
 			<div class="transit__rule" style={{background: ink}} />
-			{v.kind === 'message'
-				? <div class="transit__message">{v.text}</div>
-				: v.rows.map((d) => {
-					const m = minutesLeft(d, now);
-					const bg = look.badge(d.line);
-					return (
-						<div class="transit__row" key={d.line + d.to + d.ts}>
-							<span class="transit__badge" style={{background: bg, color: badgeInk(bg), boxShadow: boxShadow || undefined}}>{d.line}</span>
-							<span class="transit__to">{d.to}</span>
-							<span class="transit__delay">{d.delay > 0 && <span class="transit__delay-badge" style={{background: DELAY_INK, boxShadow: boxShadow || undefined}}>{`+${d.delay}'`}</span>}</span>
-							<span class={`transit__min${config.countdown === 'min' ? ' transit__min--wide' : ''}`}>
-								{m <= 0 ? <TransitGlyph kind={d.category === 'B' ? 'bus' : 'tram'} cls="transit__now" /> : countdownText(m, config.countdown)}
-							</span>
-						</div>
-					);
-				})}
+			<div class="transit__body" style={bodyStyle}>
+				{v.kind === 'message'
+					? <div class="transit__message">{v.text}</div>
+					: v.rows.map((d) => {
+						const m = minutesLeft(d, now);
+						const bg = look.badge(d.line);
+						return (
+							<div class="transit__row" key={d.line + d.to + d.ts}>
+								<span class="transit__badge" style={{background: bg, color: badgeInk(bg), boxShadow: boxShadow || undefined}}>{d.line}</span>
+								{config.scrollNames
+									? <span class="transit__to transit__to--scroll"><span class="transit__to-text">{destination(l, d)}</span></span>
+									: <span class="transit__to">{destination(l, d)}</span>}
+								{config.showPlatform && <span class="transit__platform">{d.platform}</span>}
+								<span class="transit__delay">{d.delay > 0 && <span class="transit__delay-badge" style={{background: DELAY_INK, boxShadow: boxShadow || undefined}}>{`+${d.delay}'`}</span>}</span>
+								<span class={`transit__min${config.countdown === 'min' ? ' transit__min--wide' : ''}${d.live ? '' : ' transit__min--sched'}`}>
+									{m <= 0 ? <TransitGlyph kind={d.category === 'B' ? 'bus' : 'tram'} cls="transit__now" /> : countdownText(m, config.countdown)}
+								</span>
+							</div>
+						);
+					})}
+			</div>
 		</div>
 	);
 
 	return (
-		<div class={`transit${config.align === 'right' ? ' transit--right' : config.align === 'center' ? ' transit--center' : ''}`} style={style}>
+		<div ref={rootRef} class={`transit${focused ? ' transit--focused' : ''}`} style={style}>
 			<div class="transit__pages">
 				{shown.map((l, i) => renderPage(l, views[i], i))}
 			</div>
 		</div>
 	);
+}
+
+/** Can OK on the home screen switch the board's location? (two locations taking turns) */
+export function transitSwitchable (config: TransitConfig | null | undefined): boolean {
+	return !!config && config.on && config.loc2On && config.cycleSec > 0;
 }
