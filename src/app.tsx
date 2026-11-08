@@ -24,7 +24,7 @@ import {log, logLines, allLogLines} from './lib/log';
 import {noteLife, previousLife} from './lib/lifemark';
 import {startDelay, TIER2_MS, TIER3_MS} from './lib/startup';
 import {debugPages, reportText} from './lib/debuginfo';
-import {HEARTH_VERSION} from './config/version';
+import {HEARTH_LABEL} from './config/version';
 import {autoIcon, setEdit, type SourceEdit} from './lib/sourceicons';
 import {Toast, type ToastMessage} from './components/Toast';
 import {PhotoShow, Wallpaper} from './components/Wallpaper';
@@ -284,7 +284,7 @@ export function App () {
 		el.toggle('mono-light', config.iconLight && hasLightTile(iconStyle));          // P59b: light tile, dark shape
 	}, [iconStyle, config.iconLight]);
 
-	useEffect(() => { log(`Hearth ${HEARTH_VERSION} started${NOROOT_MOCK ? ' (MOCK NON-ROOT TEST BUILD: root calls are disabled)' : ''}`); return startLogFile(TIMING.backgroundWorkMs + 1000); }, []);
+	useEffect(() => { log(`Hearth ${HEARTH_LABEL} started${NOROOT_MOCK ? ' (MOCK NON-ROOT TEST BUILD: root calls are disabled)' : ''}`); return startLogFile(TIMING.backgroundWorkMs + 1000); }, []);
 
 	const showToast = useCallback((text: string, kind: ToastMessage['kind'] = 'info') => {
 		window.clearTimeout(toastTimer.current);

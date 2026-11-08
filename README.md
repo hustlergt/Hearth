@@ -2,6 +2,8 @@
 
 # Hearth for WebOS: a fast, calm home screen for webOS TVs
 
+> **This is Hearth 2.1.5 Transit edition**, an unofficial variant of [Hearth](https://github.com/rudra-avatar/Hearth) 2.1.5 with a live Basel tram and bus departure board ([Transit](docs/features/transit.md)). It is not a release of the original project. Everything else is the original Hearth 2.1.5. The in-app update check still looks at the original's releases: installing one of those replaces this edition and removes the board.
+
 **Hearth for WebOS** is made only for TVs that run webOS.
 
 It works from **webOS 3 up to the newest versions (webOS 25/26)** and it is **designed for speed**: it starts almost instantly, scrolls smoothly and everything is adjustable from the remote.

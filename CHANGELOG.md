@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.1.5 Transit edition (unofficial variant)
+
+**This is another version, separate from the original Hearth.** It is Hearth 2.1.5 with one addition, a Basel departure board, and it is not a release of the original project (rudra-avatar/Hearth). The version number stays 2.1.5, the release it is based on; Settings shows *Hearth 2.1.5 Transit edition*. The update check still lists the original's releases: installing one of them replaces this edition and removes the board.
+
+### Changes
+
+- **Transit departure board.** Live tram and bus departures (BVB, BLT) for one or two Basel stops on the home screen, from transport.opendata.ch (free, no account). A new tab, Settings > Transit, after Widget. Off at first. See [Transit](docs/features/transit.md).
+  - Stop search with the on-screen keyboard; a label, and filters for lines, direction and platform per location.
+  - Two locations take turns (5 to 60 seconds). **Up** on the top row of apps selects the board; **OK** switches stop at once.
+  - Minutes count down on the TV from the timetable time plus the delay; a `+N'` badge shows the delay; timetable-only times are dimmed.
+  - Long destinations slide to their end and back (also on webOS 3); the stop's own town can be left out of destinations.
+  - Colour styles (BVB station amber, line colours, the clock's colour, widget colours), size, font, opacity and position; the shadow and OLED shift follow the clock.
+  - A live preview in Settings > Transit, with a miniature of the whole screen.
+  - Fetched once a minute while Hearth is in front, with only the fields the board uses (about 7 KB); longer waits after a failure; the last answer is kept for 3 hours.
+- **Builds without the board:** `HEARTH_TRANSIT=0 npm run build` leaves it out, like `HEARTH_WEATHER=0`.
+
+### Fixes
+
+- **Widget preview size.** With the extra tab, the Widget tab's live preview had become half as wide; tabs with a preview now keep their earlier width.
+
+### Texts
+
+- The board's texts are in English only (other languages show them in English). The line colours are approximate, not official.
+
+
 ## 2.1.5
 
 A release for TVs with a smaller screen, and a switch against LG's update pop-up.
