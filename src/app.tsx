@@ -59,7 +59,7 @@ import {startLogFile, writeReport, previousRunLines} from './lib/logfile';
 import {readStats, type SystemStats, getLogo, setLogo, closeLgHome} from './lib/system';
 import {readInputHookInUse} from './lib/hookguard';
 import {getHookStatus, hookMessage, installHomeHook, launchParams, logLine, markAliveSoon, reapplyHomeHook, removeHomeHook, stockHome} from './lib/homehook';
-import {SAVER_PHOTOS, SAVER_VIDEO} from './lib/saverconfig';
+import {SAVER_AERIAL, SAVER_PHOTOS, SAVER_VIDEO} from './lib/saverconfig';
 import {installSaver, reapplySaver, removeSaver, saverMessage, saverSettings, showSaver} from './lib/screensaver';
 import {cleanupMessage, removeTakeover} from './lib/takeover';
 import {getSamStatus, installSamHome, reapplySamHome, removeSamHome, samMessage, stockSam} from './lib/samhome';
@@ -1389,6 +1389,12 @@ export function App () {
 		showToast(tt('app.screenSaverBuiltIn'));
 	}, [config, showToast]);
 
+	const onChooseSaverAerial = useCallback(() => {
+		updateConfig({...config, screensaverSource: SAVER_AERIAL});
+		setScreen('settings');
+		showToast(tt('app.screenSaverAerial'));
+	}, [config, showToast]);
+
 	const onChooseCity = useCallback((city: City) => {
 		updateConfig({...config, weather: {...config.weather, city, on: true}});
 		setScreen('settings');
@@ -1687,7 +1693,7 @@ export function App () {
 				/>
 			)}
 			{screen === 'homekey' && <HomeKey model={config.remoteModel} onModel={onRemoteModel} onClose={() => setScreen('settings')} onChanged={(code) => setSystemInfo((previous) => ({...previous, homeKey: code}))} onToast={showToast}  onAuto={onAutoMap} paused={!!notice} />}
-			{screen === 'saverpicker' && <Picker forSaver onBuiltinVideo={onChooseSaverVideo} onChoose={onChooseSaver} onClose={() => setScreen('settings')} />}
+			{screen === 'saverpicker' && <Picker forSaver onBuiltinVideo={onChooseSaverVideo} onAerial={onChooseSaverAerial} onChoose={onChooseSaver} onClose={() => setScreen('settings')} />}
 			{WEATHER_ENABLED && screen === 'cities' && <CityPicker allowShell={isWebOS()} onChoose={onChooseCity} onClose={() => setScreen('settings')} />}
 			{/* W2: last, so a pop-up is in front of every screen (all screens share one layer; the later one is on top) */}
 			{notice && <Notice title={notice.title} text={notice.text} buttons={notice.buttons} onBack={notice.onBack} />}

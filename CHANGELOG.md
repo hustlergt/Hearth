@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- **Aerial videos in the screen saver.** A new choice in Settings > Screen saver > Pictures streams the aerial flights from Apple TV, Amazon Fire TV, Jetson Creative and Robin Fourcade, with their place names. You can choose the quality (Full HD, 4K SDR, 4K HDR / Dolby Vision; 4K SDR at first, so the TV's HDR badge stays away) and which feeds play. When a paused app still holds the video decoder, or the clips cannot be streamed, the bundled photos play instead. The video list and place names come from custom-screensaver-aerial by aabytt (MIT). Rooted TVs, like the rest of the screen saver.
+
 ## 2.1.5
 
 A release for TVs with a smaller screen, and a switch against LG's update pop-up.

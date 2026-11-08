@@ -6,6 +6,25 @@ import {t as tt} from '../i18n';
 /** Values of `screensaverSource` that are not paths: the 25 photos that come with Hearth, and the video that comes with it. */
 export const SAVER_PHOTOS = '@photos';
 export const SAVER_VIDEO = '@video';
+/** Streamed Aerial videos (the list ships in public/saver/aerial, see scripts/gen-aerial.mjs). */
+export const SAVER_AERIAL = '@aerial';
+
+/** The Aerial feeds, in the order the Settings rows show them. */
+export const AERIAL_SOURCES = ['apple', 'amazon', 'jetson', 'robin'] as const;
+export type AerialSource = typeof AERIAL_SOURCES[number];
+
+/** A feed switched on or off; the last one left on stays on (the saver always has something to play). */
+export function withAerialSource (sources: readonly string[], id: AerialSource, on: boolean): string[] {
+	const next = AERIAL_SOURCES.filter((s) => (s === id ? on : sources.indexOf(s) !== -1));
+	return next.length ? next : sources.slice();
+}
+
+/** Aerial video quality: Full HD, 4K SDR (the default: the TV stays in SDR, so no HDR badge), 4K HDR / Dolby Vision. */
+export type AerialQuality = 'hd' | 'uhd' | 'hdr';
+export const AERIAL_QUALITY_VALUES: readonly AerialQuality[] = ['hd', 'uhd', 'hdr'];
+export function aerialQualityText (v: AerialQuality): string {
+	return v === 'hd' ? tt('saverconfig.aerialHd') : v === 'hdr' ? tt('saverconfig.aerialHdr') : tt('saverconfig.aerialUhd');
+}
 /** Prefix of one built-in photo (`@photo:photo-03`): the saver follows a single built-in wallpaper photo. */
 export const SAVER_PHOTO_PREFIX = '@photo:';
 
@@ -24,7 +43,7 @@ export function saverRecursive (c: UserConfig): boolean {
 
 /** A slideshow: a folder or the bundled photos. One picture, GIF or video is not (speed and shuffle do not apply). */
 export function saverIsSlideshow (c: UserConfig): boolean {
-	if (c.screensaverSource === SAVER_VIDEO) return false;
+	if (c.screensaverSource === SAVER_VIDEO || c.screensaverSource === SAVER_AERIAL) return false;
 	const source = saverSource(c);
 	if (source.indexOf(SAVER_PHOTO_PREFIX) === 0) return false;
 	if (!source) return true;

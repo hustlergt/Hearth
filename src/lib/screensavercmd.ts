@@ -10,12 +10,12 @@ import {t as tt} from '../i18n';
 export {lastLine, parseExit, withStatus};
 
 /** Bump when the script or the QML change: the launcher then rewrites the installed copy. */
-export const SAVER_VERSION = '20';
+export const SAVER_VERSION = '21';
 export const SAVER_DIR = '/media/developer/launcher-screensaver';
 export const SAVER_LINK = '/var/lib/webosbrew/init.d/49-launcher-screensaver';
 
-export type SaverResult = 'applied' | 'launcher-missing' | 'files-missing' | 'unsupported' | 'no-target' | 'no-photos' | 'no-video' | 'not-taken' | 'off' | 'failed';
-const RESULTS: SaverResult[] = ['applied', 'launcher-missing', 'files-missing', 'unsupported', 'no-target', 'no-photos', 'no-video', 'not-taken', 'off'];
+export type SaverResult = 'applied' | 'launcher-missing' | 'files-missing' | 'unsupported' | 'no-target' | 'no-photos' | 'no-video' | 'no-aerial' | 'not-taken' | 'off' | 'failed';
+const RESULTS: SaverResult[] = ['applied', 'launcher-missing', 'files-missing', 'unsupported', 'no-target', 'no-photos', 'no-video', 'no-aerial', 'not-taken', 'off'];
 
 export function parseSaverResult (output: string): SaverResult {
 	const lines = output.split('\n').map((l) => l.trim()).filter((l) => (RESULTS as string[]).indexOf(l) !== -1);
@@ -39,6 +39,14 @@ export interface SaverSettings {
 	recursive: boolean;
 	/** how dark Dim is, % (10-80) */
 	dimLevel: number;
+	/** Aerial ('@aerial'): the feeds to play (apple, amazon, jetson, robin); none = all */
+	aerialSources?: readonly string[];
+	/** Aerial: hd, uhd (default) or hdr */
+	aerialQuality?: string;
+	/** Aerial: the place names over the video (default on) */
+	aerialText?: boolean;
+	/** Hearth's language, for the place names (English when there are none in it) */
+	lang?: string;
 }
 
 const SAFE_PATH = /^[\x20-\x7e]+$/;
@@ -47,7 +55,11 @@ const SAFE_PATH = /^[\x20-\x7e]+$/;
 export function settingsText (s: SaverSettings): string {
 	const source = s.source && SAFE_PATH.test(s.source) && s.source.indexOf("'") === -1 ? s.source : '';
 	const interval = Math.max(5, Math.min(3600, Math.round(s.interval) || 60));
-	return `source=${source}\ninterval=${interval}\nshuffle=${s.shuffle ? 1 : 0}\ndim=${s.dim ? 1 : 0}\ncare=${s.care === 0 ? 0 : 1}\nfill=${s.fill === 1 ? 1 : 0}\npoweroff=${Math.max(0, Math.min(86400, Math.round(s.powerOff) || 0))}\nrecursive=${s.recursive ? 1 : 0}\ndimlevel=${Math.max(10, Math.min(80, Math.round(s.dimLevel) || 40))}\n`;
+	const aerialSrc = (s.aerialSources || []).filter((x) => /^[a-z]{1,20}$/.test(x)).join(',');
+	const aerialQ = s.aerialQuality === 'hd' || s.aerialQuality === 'hdr' ? s.aerialQuality : 'uhd';
+	const lang = s.lang && /^[A-Za-z-]{1,12}$/.test(s.lang) ? s.lang : 'en';
+	return `source=${source}\ninterval=${interval}\nshuffle=${s.shuffle ? 1 : 0}\ndim=${s.dim ? 1 : 0}\ncare=${s.care === 0 ? 0 : 1}\nfill=${s.fill === 1 ? 1 : 0}\npoweroff=${Math.max(0, Math.min(86400, Math.round(s.powerOff) || 0))}\nrecursive=${s.recursive ? 1 : 0}\ndimlevel=${Math.max(10, Math.min(80, Math.round(s.dimLevel) || 40))}\n` +
+		`aerialsrc=${aerialSrc}\naerialq=${aerialQ}\naerialtext=${s.aerialText === false ? 0 : 1}\nlang=${lang}\n`;
 }
 
 export interface SaverFiles {
@@ -102,6 +114,7 @@ export function saverMessage (result: SaverResult, detail = ''): string {
 		case 'files-missing': return tt('screensavercmd.theFilesAreMissing');
 		case 'unsupported': return tt('screensavercmd.thisTvHasNo');
 		case 'no-video': return tt('screensavercmd.theBuiltInVideo');
+		case 'no-aerial': return tt('screensavercmd.theAerialList');
 		case 'not-taken': return tt('screensavercmd.theTvDidNot');
 		case 'no-target': return tt('screensavercmd.couldNotFindThe');
 		case 'no-photos': return tt('screensavercmd.noPhotosWereFound');

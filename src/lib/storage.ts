@@ -191,6 +191,12 @@ export interface UserConfig {
 	screensaverFit: 'fit' | 'fill';
 	/** a folder chosen for the saver also uses the folders inside it (all levels, no limit) */
 	screensaverRecursive: boolean;
+	/** Aerial saver ('@aerial'): the feeds it plays (apple, amazon, jetson, robin; at least one) */
+	screensaverAerialSources: string[];
+	/** Aerial saver: 'hd' Full HD, 'uhd' 4K SDR (default: no HDR switch, so no HDR badge), 'hdr' 4K HDR / Dolby Vision */
+	screensaverAerialQuality: 'hd' | 'uhd' | 'hdr';
+	/** Aerial saver: the place names over the video */
+	screensaverAerialText: boolean;
 	/** "When the TV turns on, open...": the app chosen last ('' = the TV's default); the TV's own files say what is in place, this
 	 *  is shown until they have been read (P55b, from PR #25 by Obednal97) */
 	powerOnApp: string;
@@ -353,6 +359,9 @@ export const DEFAULT_CONFIG: UserConfig = {
 	screensaverDimLevel: 40,
 	screensaverFit: 'fit',
 	screensaverRecursive: false,
+	screensaverAerialSources: ['apple', 'amazon', 'jetson', 'robin'],
+	screensaverAerialQuality: 'uhd',
+	screensaverAerialText: true,
 	powerOnApp: '',
 	powerOnNetwork: false,
 	theme: 'black',
@@ -407,6 +416,13 @@ function stringList (value: unknown): string[] | null {
 	return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : null;
 }
 
+/** The Aerial feeds from a saved setting: known ids only, in the usual order; none (or nothing saved) = all of them. */
+function aerialSourcesOf (value: unknown): string[] {
+	const all = DEFAULT_CONFIG.screensaverAerialSources;
+	const picked = Array.isArray(value) ? all.filter((id) => value.indexOf(id) !== -1) : [];
+	return picked.length ? picked : all.slice();
+}
+
 /** A number within the range's limits, snapped to its step; the default when it isn't a number. */
 function ranged (value: unknown, name: RangeName): number {
 	const r = RANGES[name];
@@ -418,7 +434,7 @@ function ranged (value: unknown, name: RangeName): number {
 /** Fields left alone by the P41f reset: the user's own apps, order, names and favourites, and everything installed on the TV (helper, Home key, power-on app, saver, keep-ready, remote, debug). */
 const KEPT_ON_RESET: readonly (keyof UserConfig)[] = ['appIds', 'hiddenIds', 'sourceIds', 'tileOrder', 'favourites', 'sourceEdits', 'appEdits', 'closeHome', 'tvApps', 'showDebug', 'language', 'hideSettings',
 	'replaceHome', 'homeApp', 'homeAppPrevious', 'preloadOff', 'keepReady', 'keepRelaunch', 'takeoverHome', 'samHome', 'screensaver', 'screensaverSource', 'screensaverInterval', 'screensaverShuffle',
-	'screensaverCare', 'screensaverPowerOff', 'screensaverDim', 'screensaverDimLevel', 'screensaverFit', 'screensaverRecursive', 'powerOnApp', 'powerOnNetwork', 'remoteModel', 'remap', 'remapKept', 'defaultsV'];
+	'screensaverCare', 'screensaverPowerOff', 'screensaverDim', 'screensaverDimLevel', 'screensaverFit', 'screensaverRecursive', 'screensaverAerialSources', 'screensaverAerialQuality', 'screensaverAerialText', 'powerOnApp', 'powerOnNetwork', 'remoteModel', 'remap', 'remapKept', 'defaultsV'];
 
 /** P41f: the saved settings with every look, widget, wallpaper, home-row and quiet-mode value at its default. */
 export function withDefaultLook (c: UserConfig): UserConfig {
@@ -519,7 +535,7 @@ export function loadConfig (): UserConfig {
 			takeoverHome: parsed.takeoverHome === true,
 			samHome: parsed.samHome === true,
 			screensaver: parsed.screensaver !== false,        // P41c: a saved setting without the field (updaters) reads as On
-			screensaverSource: typeof parsed.screensaverSource !== 'string' ? DEFAULT_CONFIG.screensaverSource : (parsed.screensaverSource.charAt(0) === '/' || /^@(photos|video|photo:photo-[0-9][0-9])$/.test(parsed.screensaverSource)) && parsed.screensaverSource.length < 400 ? parsed.screensaverSource : '',   // P41c: the built-in choices (@photos, @video) were dropped on reload before
+			screensaverSource: typeof parsed.screensaverSource !== 'string' ? DEFAULT_CONFIG.screensaverSource : (parsed.screensaverSource.charAt(0) === '/' || /^@(photos|video|photo:photo-[0-9][0-9]|aerial)$/.test(parsed.screensaverSource)) && parsed.screensaverSource.length < 400 ? parsed.screensaverSource : '',   // P41c: the built-in choices (@photos, @video) were dropped on reload before
 			screensaverInterval: typeof parsed.screensaverInterval === 'number' && parsed.screensaverInterval >= 5 && parsed.screensaverInterval <= 3600 ? Math.round(parsed.screensaverInterval) : 60,
 			screensaverShuffle: parsed.screensaverShuffle !== false,
 			screensaverPowerOff: typeof parsed.screensaverPowerOff === 'number' && parsed.screensaverPowerOff >= 0 && parsed.screensaverPowerOff <= 86400 ? (parsed.screensaverPowerOff === 30 ? 60 : Math.round(parsed.screensaverPowerOff)) : (parsed.screensaverPowerOff === undefined ? DEFAULT_CONFIG.screensaverPowerOff : 0),
@@ -527,6 +543,9 @@ export function loadConfig (): UserConfig {
 			screensaverDim: parsed.screensaverDim === true,
 			screensaverFit: parsed.screensaverFit === 'fill' ? 'fill' : 'fit',
 			screensaverRecursive: parsed.screensaverRecursive === true,
+			screensaverAerialSources: aerialSourcesOf(parsed.screensaverAerialSources),
+			screensaverAerialQuality: parsed.screensaverAerialQuality === 'hd' || parsed.screensaverAerialQuality === 'hdr' ? parsed.screensaverAerialQuality : 'uhd',
+			screensaverAerialText: parsed.screensaverAerialText !== false,
 			theme: THEME_IDS.indexOf(parsed.theme as ThemeName) !== -1 ? (parsed.theme as ThemeName) : 'black',
 			background: BACKGROUND_IDS.indexOf(parsed.background as string) !== -1 ? (parsed.background as string) : 'theme',
 			iconScale: ranged(parsed.iconScale, 'iconScale'),

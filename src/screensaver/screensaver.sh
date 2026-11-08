@@ -19,7 +19,7 @@
 #
 # Usage: sh screensaver.sh on | apply | off | show | status | diagnose | boot
 #   on        mount ours and keep it on at boot. Prints applied, launcher-missing, files-missing, unsupported,
-#             no-target, no-photos, no-video, not-taken or failed.
+#             no-target, no-photos, no-video, no-aerial, not-taken or failed.
 #   apply     rebuild the QML from the settings file and mount it again (cheap). Same words as "on".
 #   off       switch off: LG's own screen saver is back. Prints removed.
 #   show      start the TV's screen saver now (to try it). Prints shown or failed.
@@ -33,7 +33,11 @@
 # layer over the picture, about 60% brightness), poweroff (seconds of screen saver before the TV is switched off; 0 = never), care (1 on, 0 off: a thin frame and a slow drift for one picture, GIF or video), fill (0 fit the whole picture, 1 crop to fill the screen; pictures, GIFs and videos).
 # dimlevel (10 to 80: how dark Dim is, % opacity of the black layer; default 40).
 # recursive (1: a folder's sub-folders are used too, all levels; 0: only the folder itself). There is no limit on the number of items.
-# source may also be @photos (the bundled photos), @video (the built-in video) or @photo:photo-NN (one bundled photo).
+# source may also be @photos (the bundled photos), @video (the built-in video), @photo:photo-NN (one bundled photo) or
+# @aerial (streamed Aerial videos: the list and place names ship with Hearth in saver/aerial; the bundled photos are the
+# fall-back when no clip plays). With @aerial: aerialsrc (apple,amazon,jetson,robin: which feeds; empty = all), aerialq (hd,
+# uhd or hdr: Full HD, 4K SDR, 4K HDR / Dolby Vision; default uhd), aerialtext (1: show the place names), lang (the
+# language of the place names; English when that language has none).
 
 DIR="${DIR:-/media/developer/launcher-screensaver}"
 APP="${APP:-/usr/palm/applications/com.webos.app.screensaver}"
@@ -121,9 +125,24 @@ list_photos () {
     rm -f "$part"
 }
 
+# the Aerial settings for the QML (only used when source is @aerial): sets aerial, abase, alist, aq, atext, alang
+aerial_settings () {
+    aerial=false; abase="file://$LAUNCHER/saver/aerial/"
+    [ "$(setting source)" = "@aerial" ] && aerial=true
+    # "apple,amazon" -> "apple","amazon" (letters and commas only; nothing = all feeds)
+    alist=$(setting aerialsrc | sed -e 's/[^a-z,]//g' -e 's/,,*/,/g' -e 's/^,//' -e 's/,$//' -e 's/\([a-z][a-z]*\)/"\1"/g')
+    aq=$(setting aerialq); case "$aq" in hd|uhd|hdr) ;; *) aq=uhd ;; esac
+    atext=$(num "$(setting aerialtext)" 1); [ "$atext" -gt 1 ] && atext=1
+    alang=$(setting lang); case "$alang" in ''|*[!A-Za-z-]*) alang=en ;; esac
+    [ -f "$LAUNCHER/saver/aerial/strings-$alang.json" ] || alang=en
+    case "$abase" in *'|'*|*'&'*|*'"'*|*'\'*) abase="file:///nonexistent/" ;; esac
+}
+
 build_qml () {
     [ -f "$TEMPLATE" ] || return 1
     [ "$(setting source)" = "@video" ] && [ ! -f "$LAUNCHER/saver/builtin.mp4" ] && return 3
+    [ "$(setting source)" = "@aerial" ] && [ ! -f "$LAUNCHER/saver/aerial/videos.json" ] && return 4
+    aerial_settings
     list="$DIR/photos.tmp"
     list_photos > "$list"
     [ -s "$list" ] || { rm -f "$list"; return 2; }
@@ -134,7 +153,9 @@ build_qml () {
     fill=$(num "$(setting fill)" 0); [ "$fill" -gt 1 ] && fill=1
     dimlevel=$(num "$(setting dimlevel)" 40); [ "$dimlevel" -lt 10 ] && dimlevel=10; [ "$dimlevel" -gt 80 ] && dimlevel=80
     # the settings first (one sed), then the photo list in place of its marker line (no program started per line)
-    sed -e "s/__INTERVAL__/$interval/" -e "s/__SHUFFLE__/$shuffle/" -e "s/__DIM__/$dim/" -e "s/__CARE__/$care/" -e "s/__FILL__/$fill/" -e "s/__DIMLEVEL__/$dimlevel/" "$TEMPLATE" > "$QML.tmp" || return 1
+    sed -e "s/__INTERVAL__/$interval/" -e "s/__SHUFFLE__/$shuffle/" -e "s/__DIM__/$dim/" -e "s/__CARE__/$care/" -e "s/__FILL__/$fill/" -e "s/__DIMLEVEL__/$dimlevel/" \
+        -e "s/__AERIAL_ON__/$aerial/" -e "s|__AERIAL_BASE__|$abase|" -e "s/__AERIAL_SOURCES__/$alist/" -e "s/__AERIAL_QUALITY__/$aq/" \
+        -e "s/__AERIAL_TEXT__/$atext/" -e "s/__AERIAL_LANG__/$alang/" "$TEMPLATE" > "$QML.tmp" || return 1
     : > "$QML.new"
     while IFS= read -r line; do
         case "$line" in
@@ -255,6 +276,7 @@ take () {
         1) echo files-missing; return 4 ;;
         2) log "no photos found"; echo no-photos; return 7 ;;
         3) log "the built-in video is not in this build"; echo no-video; return 9 ;;
+        4) log "the Aerial video list is not in this build"; echo no-aerial; return 10 ;;
     esac
     if [ -n "$staged" ]; then
         [ "$staged" = staged ] && staged="not QML"
@@ -444,7 +466,8 @@ cmd_diagnose () {
     echo "== power state now: '$(power_state)'; watcher pid: $(watch_pid) ($(watch_secs) s)"
     echo "== mounts"; grep -i screensaver "$MOUNTS" || echo none
     echo "== settings"; cat "$SETTINGS" 2>&1
-    echo "== photos listed"; grep -c file:// "$QML" 2>/dev/null
+    echo "== photos listed"; grep -c '^ *"file://.*",$' "$QML" 2>/dev/null
+    echo "== aerial: $(grep -E 'property (bool aerial|string aerialQuality|var aerialSources|string aerialLang):' "$QML" 2>/dev/null | sed 's/.*property //' | tr '\n' ' ')"
     echo "== link"; ls -l "$LINK" 2>&1
     echo "== log"; tail -n 30 "$LOG" 2>&1
 }

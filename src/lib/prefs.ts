@@ -18,7 +18,7 @@ import {SCROLL_SPEED_IDS, scrollSpeedText} from './scrollspeed';
 import {TILE_SHAPE_IDS, tileShapeText} from './tileshape';
 import {CLOCK_COLOR_IDS, LABEL_COLOR_IDS, iconColorValues, iconColorEffective, iconColorText, colorInfo, labelColorText, withoutInk, type ClockColor} from './clockcolor';
 import {baseName} from './wallpaper';
-import {SAVER_FIT_VALUES, fitText, SAVER_INTERVAL_VALUES, SAVER_POWEROFF_VALUES, powerOffText, SAVER_PHOTOS, SAVER_VIDEO, saverIsSlideshow} from './saverconfig';
+import {SAVER_FIT_VALUES, fitText, SAVER_INTERVAL_VALUES, SAVER_POWEROFF_VALUES, powerOffText, SAVER_PHOTOS, SAVER_VIDEO, SAVER_AERIAL, saverIsSlideshow, AERIAL_QUALITY_VALUES, aerialQualityText, withAerialSource, type AerialSource} from './saverconfig';
 import {WEATHER_ENABLED} from '../config/features';
 import type {TempUnit} from './weather';
 import {lastFailure, rootState, type RootState} from './failure';
@@ -69,7 +69,7 @@ export interface SystemInfo {
 /** The options that run shell commands, so they can't work without root. */
 /** System rows that stay while root has failed (P83). */
 export const NO_ROOT_ROWS = ['updates', 'language', 'languageRemove', 'tvApps', 'noRootGuide', 'showDebug'];
-export const ROOT_OPTIONS = ['remap', 'replaceHome', 'samHome', 'homeApp', 'homeKey', 'preload', 'keepReady', 'keepRelaunch', 'tvInput', 'powerOnApp', 'lgLogo', 'noUpdate', 'screensaver', 'screensaverPictures', 'screensaverInterval', 'screensaverShuffle', 'screensaverCare', 'screensaverFit', 'screensaverDim', 'screensaverPowerOff', 'screensaverShow'];
+export const ROOT_OPTIONS = ['remap', 'replaceHome', 'samHome', 'homeApp', 'homeKey', 'preload', 'keepReady', 'keepRelaunch', 'tvInput', 'powerOnApp', 'lgLogo', 'noUpdate', 'screensaver', 'screensaverPictures', 'screensaverAerialQuality', 'screensaverAerialApple', 'screensaverAerialAmazon', 'screensaverAerialJetson', 'screensaverAerialRobin', 'screensaverAerialText', 'screensaverInterval', 'screensaverShuffle', 'screensaverCare', 'screensaverFit', 'screensaverDim', 'screensaverPowerOff', 'screensaverShow'];
 
 
 /** Why a row is greyed out, or null when it is usable. */
@@ -309,6 +309,9 @@ function powerOnText (c: UserConfig, info?: SystemInfo): string {
 	return needsRestart(status) ? td('pref.afterRestart', {name: chosen}) : chosen;
 }
 
+/** The Aerial rows show only while the saver is on and plays Aerial videos. */
+const isAerial = (c: UserConfig): boolean => c.screensaver && c.screensaverSource === SAVER_AERIAL;
+
 const BASE_PREFS: PrefDef[] = [
 	// ----- Look -----
 	{
@@ -543,9 +546,15 @@ const BASE_PREFS: PrefDef[] = [
 	},
 	{
 		id: 'screensaverPictures', tab: 'system', kind: 'action',
-		text: (c) => (c.screensaverSource === SAVER_PHOTOS ? td('pref.saverPhotos') : c.screensaverSource === SAVER_VIDEO ? td('pref.saverVideo') : c.screensaverSource ? (c.screensaverSource.slice(c.screensaverSource.lastIndexOf('/') + 1) || c.screensaverSource) + (c.screensaverRecursive ? td('pref.withSubfolders') : '') : td('picker.sameAsTheWallpaper')),
+		text: (c) => (c.screensaverSource === SAVER_PHOTOS ? td('pref.saverPhotos') : c.screensaverSource === SAVER_VIDEO ? td('pref.saverVideo') : c.screensaverSource === SAVER_AERIAL ? td('pref.saverAerial') : c.screensaverSource ? (c.screensaverSource.slice(c.screensaverSource.lastIndexOf('/') + 1) || c.screensaverSource) + (c.screensaverRecursive ? td('pref.withSubfolders') : '') : td('picker.sameAsTheWallpaper')),
 		visible: (c) => c.screensaver
 	},
+	{...choice('screensaverAerialQuality', 'system',
+		AERIAL_QUALITY_VALUES, (c) => c.screensaverAerialQuality, (c, v) => ({...c, screensaverAerialQuality: v}), aerialQualityText), visible: isAerial},
+	...(['apple', 'amazon', 'jetson', 'robin'] as AerialSource[]).map((id): PrefDef => toggle('screensaverAerial' + id.charAt(0).toUpperCase() + id.slice(1), 'system',
+		(c) => c.screensaverAerialSources.indexOf(id) !== -1, (c, v) => ({...c, screensaverAerialSources: withAerialSource(c.screensaverAerialSources, id, v)}), isAerial)),
+	toggle('screensaverAerialText', 'system',
+		(c) => c.screensaverAerialText, (c, v) => ({...c, screensaverAerialText: v}), isAerial),
 	{...choice('screensaverInterval', 'system',
 		SAVER_INTERVAL_VALUES, (c) => c.screensaverInterval, (c, v) => ({...c, screensaverInterval: v}), intervalText), visible: (c) => c.screensaver && saverIsSlideshow(c)},
 	{...toggle('screensaverShuffle', 'system',
@@ -597,7 +606,7 @@ const LAYOUT: [PrefTab, string, string[]][] = [
 	['clock', 'Widget look', ['clockSize', 'clockFont', 'clockWeight', 'clockTop', 'clockLeft', 'clockAlign', 'clockColor', 'clockShadow', 'clockScrim', 'clockOpacity']],
 	['clock', 'Weather', ['weatherOn', 'weatherUnit', 'weatherCity', 'weatherCityName', 'weatherRange']],
 	['wallpaper', '', ['wallpaper', 'wallpaperFit', 'interval', 'shuffle', 'wallpaperOpacity', 'fadeStrength']],   // P66b: few rows, no groups (was Background and Picture)
-	['saver', '', ['screensaver', 'screensaverPictures', 'screensaverInterval', 'screensaverShuffle', 'screensaverFit', 'screensaverCare', 'screensaverDim', 'screensaverPowerOff', 'screensaverShow']],
+	['saver', '', ['screensaver', 'screensaverPictures', 'screensaverAerialQuality', 'screensaverAerialApple', 'screensaverAerialAmazon', 'screensaverAerialJetson', 'screensaverAerialRobin', 'screensaverAerialText', 'screensaverInterval', 'screensaverShuffle', 'screensaverFit', 'screensaverCare', 'screensaverDim', 'screensaverPowerOff', 'screensaverShow']],
 	['system', '', ['updates', 'language', 'languageRemove']],
 	['system', 'Remote control', ['homeKey', 'remap']],
 	['system', 'TV start', ['tvApps', 'noRootGuide', 'tvInput', 'replaceHome', 'samHome', 'powerOnApp', 'lgLogo', 'noUpdate', 'homeApp']],

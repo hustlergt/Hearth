@@ -26,6 +26,8 @@ interface Props {
 	forSaver?: boolean;
 	/** choosing the screen saver's pictures: the built-in video row was picked */
 	onBuiltinVideo?: () => void;
+	/** choosing the screen saver's pictures: the Aerial videos row was picked */
+	onAerial?: () => void;
 	/** choosing a theme (.zip file, any folder or drive): the path was picked; the promise ends when loading is over */
 	forTheme?: boolean;
 	onTheme?: (path: string) => Promise<void>;
@@ -36,7 +38,7 @@ interface Props {
 	onClose: () => void;
 }
 
-type RowKind = 'theme' | 'gradient' | 'photos' | 'video' | 'root' | 'folder' | 'picture' | 'slideshow' | 'info' | 'retry';
+type RowKind = 'theme' | 'gradient' | 'photos' | 'video' | 'aerial' | 'root' | 'folder' | 'picture' | 'slideshow' | 'info' | 'retry';
 
 interface PickerRow {
 	key: string;
@@ -106,7 +108,8 @@ function buildRows (path: string | null, roots: StorageRoot[], entries: DirEntry
 		: {key: 'gradient', kind: 'gradient', label: tt('picker.builtInBackground'), detail: tt('picker.noPictureChangeWhich')};
 	const top = (): PickerRow[] => theme ? [] : saver ? [first,
 		{key: 'photos', kind: 'photos', label: tt('picker.photosSlideshowBuiltIn'), detail: tt('picker.the25PhotosThat')},
-		{key: 'video', kind: 'video', label: tt('picker.builtInVideoScreen'), detail: tt('picker.aVideoThatComes')}
+		{key: 'video', kind: 'video', label: tt('picker.builtInVideoScreen'), detail: tt('picker.aVideoThatComes')},
+		{key: 'aerial', kind: 'aerial', label: tt('picker.aerialVideos'), detail: tt('picker.aerialVideosDetail')}
 	] : [first, {key: 'photos', kind: 'photos', label: tt('picker.photosSlideshow'), detail: tt('picker.the25PhotosThat2')}];
 	if (failed) {
 		const rows: PickerRow[] = [{key: 'retry', kind: 'retry', label: tt('picker.tryAgain'), detail: tt('picker.readTheStorageAgain')}];
@@ -151,7 +154,7 @@ function buildRows (path: string | null, roots: StorageRoot[], entries: DirEntry
 /** Folder browser for choosing a wallpaper picture or a slideshow folder.
  *  Top level: the default gradient, USB drives, internal storage. Inside a folder: sub-folders,
  *  pictures, and (when it has pictures) a row that plays the whole folder as a slideshow. */
-export function Picker ({forIcon, forSaver, forTheme, onTheme, forLanguage, onLanguage, onBuiltinVideo, onChoose, onClose}: Props) {
+export function Picker ({forIcon, forSaver, forTheme, onTheme, forLanguage, onLanguage, onBuiltinVideo, onAerial, onChoose, onClose}: Props) {
 	const [roots, setRoots] = useState<StorageRoot[]>([]);
 	const [path, setPath] = useState<string | null>(null);
 	const [entries, setEntries] = useState<DirEntry[]>([]);
@@ -162,7 +165,7 @@ export function Picker ({forIcon, forSaver, forTheme, onTheme, forLanguage, onLa
 	const [busy, setBusy] = useState(false);
 	const remembered = useRef<Record<string, number>>({});
 
-	const rows = buildRows(path, roots, entries, !loading && error !== '', !!forSaver, forIcon ? null : forLanguage ? languagesFolderRow() : forTheme ? themesFolderRow() : forSaver ? SAVER_FOLDER : WALLPAPER_FOLDER, !!forTheme || !!forLanguage, !!forLanguage).filter((r) => !forIcon || (r.kind !== 'gradient' && r.kind !== 'photos' && r.kind !== 'video' && r.kind !== 'slideshow'));
+	const rows = buildRows(path, roots, entries, !loading && error !== '', !!forSaver, forIcon ? null : forLanguage ? languagesFolderRow() : forTheme ? themesFolderRow() : forSaver ? SAVER_FOLDER : WALLPAPER_FOLDER, !!forTheme || !!forLanguage, !!forLanguage).filter((r) => !forIcon || (r.kind !== 'gradient' && r.kind !== 'photos' && r.kind !== 'video' && r.kind !== 'aerial' && r.kind !== 'slideshow'));
 	const pathKey = path === null ? '' : path;
 
 	// The advised folders are made when a picker for wallpaper or saver opens (once ever; a deleted folder stays deleted).
@@ -214,6 +217,7 @@ export function Picker ({forIcon, forSaver, forTheme, onTheme, forLanguage, onLa
 			case 'gradient': onChoose({mode: 'gradient'}); break;
 			case 'photos': onChoose({mode: 'photos'}); break;
 			case 'video': if (onBuiltinVideo) onBuiltinVideo(); break;
+			case 'aerial': if (onAerial) onAerial(); break;
 			case 'retry': setIndex(0); setAttempt((n) => n + 1); break;
 			case 'root':
 			case 'folder': if (row.path) goTo(row.path, 0); break;
@@ -239,7 +243,7 @@ export function Picker ({forIcon, forSaver, forTheme, onTheme, forLanguage, onLa
 
 	const start = clamp(index - Math.floor(VISIBLE_ROWS / 2), 0, Math.max(0, rows.length - VISIBLE_ROWS));
 	const visible = rows.slice(start, start + VISIBLE_ROWS);
-	const iconFor = (row: PickerRow) => row.kind === 'gradient' ? 'default' : row.kind === 'photos' || row.kind === 'video' ? 'slideshow' : row.kind === 'retry' ? 'info' : row.kind === 'theme' ? 'app' : row.kind === 'root' ? (row.path === INTERNAL_ROOT.path || row.path === WALLPAPER_FOLDER.path || row.path === SAVER_FOLDER.path || row.path === THEME_FOLDER || row.path === LANGUAGE_FOLDER ? 'folder' : 'drive') : row.kind;
+	const iconFor = (row: PickerRow) => row.kind === 'gradient' ? 'default' : row.kind === 'photos' || row.kind === 'video' || row.kind === 'aerial' ? 'slideshow' : row.kind === 'retry' ? 'info' : row.kind === 'theme' ? 'app' : row.kind === 'root' ? (row.path === INTERNAL_ROOT.path || row.path === WALLPAPER_FOLDER.path || row.path === SAVER_FOLDER.path || row.path === THEME_FOLDER || row.path === LANGUAGE_FOLDER ? 'folder' : 'drive') : row.kind;
 
 	return (
 		<div class="screen screen--picker">
