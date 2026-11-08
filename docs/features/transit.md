@@ -4,8 +4,14 @@
 
 The departure board shows the next trams and buses (BVB and BLT) from one or two stops in Basel, with live delays. Find it in **Settings, Transit**. A small live picture of the board sits beside the list, and under it a miniature of the whole screen, so you see where the board sits next to the clock.
 
+![The departure board on the home screen, beside the clock](../screenshots/home-transit.jpg)
+
+![Settings, Transit: Location 1 with the live preview and the miniature screen](../screenshots/settings-transit-location.jpg)
+
 - **Show the departure board:** off at first. The first time it is on, Hearth looks up the two starting stops, *Basel, Barfüsserplatz* and *Basel, Bahnhof SBB*.
 - **Location 1:** the **Stop** (OK opens a search; type at least two letters, the stops appear below), a **Label** shown instead of the stop's name, and three filters: **Lines** (for example `1, 8, N11`), **Direction** (part of a destination, for example `Riehen`; accents do not matter) and **Platform** (for example `C`, useful where one line leaves in both directions).
+
+![Settings, Transit: the board options](../screenshots/settings-transit-board.jpg)
 - **Location 2:** a second stop with the same rows, shown in turn with the first. **Switch every** sets how long each one shows (5 to 60 seconds); *Off* shows Location 1 only.
 - **Board:** how many **Rows** (2 to 6), minutes shown as `3'` or `3 min`, **Show the platform**, **Shorten destinations** (leaves out the stop's own town: *Basel, Neuweilerstrasse* reads *Neuweilerstrasse*), **Scroll long destinations** (names that do not fit slide to their end and back; off, they end in "…"), the **Colour style** (BVB station amber, BVB line colours, the clock's colour, or one of the widget colours), text size, font and opacity. The shadow follows the clock's.
 - **Position:** alignment, position across and position from the top, the same way as the clock.

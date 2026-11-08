@@ -10,6 +10,15 @@
 >
 > Tested on an LG TV with webOS 26 (11.2.0). Branches: `feature/transit-aerial` has everything; `feature/transit-board` and `feature/aerial-saver` have one feature each; `main` follows the original. Hearth's own in-app update check still looks at the original's releases: installing one of those replaces this fork's build. Licences: Hearth's [MIT licence](LICENSE) and every credit in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) apply unchanged; the additions are under the same MIT licence.
 
+**The transit board in this fork:** live departures beside the clock, with delays (`+2'`), set up in its own Settings tab with a live preview and a miniature of the whole screen.
+
+![Home screen with the Basel departure board beside the clock](docs/screenshots/home-transit.jpg)
+
+| | |
+|---|---|
+| ![Settings, Transit: the stop, label and filters for Location 1, with the live preview](docs/screenshots/settings-transit-location.jpg) | ![Settings, Transit: board options (rows, minutes, platform, shorter and scrolling destinations, colour style)](docs/screenshots/settings-transit-board.jpg) |
+| *Location 1: stop search, label and filters* | *Board options, with the live preview on the right* |
+
 **Hearth for WebOS** is made only for TVs that run webOS.
 
 It works from **webOS 3 up to the newest versions (webOS 25/26)** and it is **designed for speed**: it starts almost instantly, scrolls smoothly and everything is adjustable from the remote.
