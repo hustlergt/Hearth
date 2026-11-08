@@ -93,15 +93,17 @@ import {uninstallApp, uninstallVerdict, UNINSTALL_LOG} from './lib/uninstall';
 import {appTile, inputTile, pickInOrder} from './lib/tiles';
 import {orderTiles, orderUpdate, stepKeys} from './lib/tileorder';
 import {APP_ID, TIMING, WALLPAPER} from './config/constants';
-import {LEGACY, PROBE_ENABLED, WEATHER_ENABLED} from './config/features';
+import {LEGACY, PROBE_ENABLED, TRANSIT_ENABLED, WEATHER_ENABLED} from './config/features';
+import {TransitEntry, type TransitField} from './screens/TransitEntry';
+import type {TransitLocation, TransitStation} from './lib/transitconfig';
 import {PROBE_TESTS, RUN_ALL_ID, bad as probeBad, probeOptions, runAll, withLimit, type ProbeState} from './lib/probe';
 import {fetchWeather} from './lib/weathernet';
 import {FRESH_MS, isFresh, readWeatherCache, usableCached, weatherView, writeWeatherCache, type City, type WeatherData} from './lib/weather';
 import {CONNECT_APPS_NOTE} from './config/connectapps';
 
-type Screen = 'home' | 'settings' | 'picker' | 'saverpicker' | 'cities' | 'source' | 'iconpicker' | 'homekey' | 'preload' | 'poweron' | 'remote' | 'extrakeys' | 'themes' | 'languages' | 'updates';
+type Screen = 'home' | 'settings' | 'picker' | 'saverpicker' | 'cities' | 'transit' | 'source' | 'iconpicker' | 'homekey' | 'preload' | 'poweron' | 'remote' | 'extrakeys' | 'themes' | 'languages' | 'updates';
 
-const TAB = {apps: 'apps', sources: 'sources', appsSources: 'appsources', look: 'look', clock: 'clock', wallpaper: 'wallpaper', saver: 'saver', system: 'system', debug: 'debug', tests: 'tests'} as const;
+const TAB = {apps: 'apps', sources: 'sources', appsSources: 'appsources', look: 'look', clock: 'clock', transit: 'transit', wallpaper: 'wallpaper', saver: 'saver', system: 'system', debug: 'debug', tests: 'tests'} as const;
 const MISC = {lgHome: 'lg-home', settings: 'settings', system: 'system-settings'} as const;
 
 /** The three tiles that always end the row. */
@@ -1032,6 +1034,7 @@ export function App () {
 		]},
 		lazyTab({id: TAB.look, label: tt('app.look'), items: [], shown: []}, {options: () => groupsOf('look', systemInfo)}),
 		lazyTab({id: TAB.clock, label: tt('app.widget'), items: [], shown: []}, {options: () => groupsOf('clock')}),
+		...(TRANSIT_ENABLED ? [lazyTab({id: TAB.transit, label: tt('app.transit'), items: [], shown: []}, {options: () => groupsOf('transit')})] : []),
 		lazyTab({id: TAB.wallpaper, label: tt('app.wallpaper'), items: [], shown: []}, {options: () => groupsOf('wallpaper')}),
 		...(noRoot ? [] : [lazyTab({id: TAB.saver, label: tt('app.screenSaver'), items: [], shown: []}, {options: () => groupsOf('saver', systemInfo)})]),
 		lazyTab({id: TAB.system, label: tt('app.system'), items: [], shown: []}, {options: () => groupsOf('system', {...systemInfo, tvInput, powerOnNames})}),
@@ -1140,6 +1143,15 @@ export function App () {
 		if (optionId === 'theme' && press === 'ok' && systemInfo.root === 'yes') { setScreen('themes'); return; }       // OK (rooted TVs): load a theme zip; ← → step the built-in themes
 		if (optionId === 'language' && press === 'ok' && systemInfo.root === 'yes') { setScreen('languages'); return; }       // OK (rooted TVs): load a language file; ← → switch
 		if (optionId === 'wallpaper' && press === 'ok') { setScreen('picker'); return; }       // OK: pick a picture or folder; ← → step the built-in backgrounds
+		if (TRANSIT_ENABLED && press === 'ok') {       // Transit: the stop, label and filter rows open the text entry screen
+			const m = /^transit([12])(Station|Label|Lines|Dir)$/.exec(optionId);
+			if (m) {
+				const fields: Record<string, TransitField> = {Station: 'station', Label: 'label', Lines: 'lines', Dir: 'direction'};
+				setTransitEntry({which: m[1] === '2' ? 2 : 1, field: fields[m[2]]});
+				setScreen('transit');
+				return;
+			}
+		}
 		if (pref.kind === 'action') {
 			if (optionId === 'weatherCity') setScreen('cities');
 			else if (optionId === 'restoreLook') {
@@ -1389,6 +1401,36 @@ export function App () {
 		showToast(tt('app.screenSaverBuiltIn'));
 	}, [config, showToast]);
 
+	// ----- Transit (Settings → Transit) -----
+	const [transitEntry, setTransitEntry] = useState<{which: 1 | 2; field: TransitField} | null>(null);
+	const setTransitLoc = (c: UserConfig, which: 1 | 2, patch: Partial<TransitLocation>): UserConfig => {
+		const key = which === 1 ? 'loc1' : 'loc2';
+		return {...c, transit: {...c.transit, [key]: {...c.transit[key], ...patch}}};
+	};
+	const onTransitStation = useCallback((station: TransitStation) => {
+		if (!transitEntry) return;
+		const which = transitEntry.which;
+		updateConfig(setTransitLoc(config, which, {station}));
+		setScreen('settings');
+		showToast(tt('transit.stopSet', {n: which, name: station.name}));
+	}, [config, transitEntry, showToast]);
+	const onTransitText = useCallback((value: string) => {
+		if (!transitEntry) return;
+		const key = transitEntry.field === 'label' ? 'label' : transitEntry.field === 'lines' ? 'lines' : 'direction';
+		updateConfig(setTransitLoc(config, transitEntry.which, {[key]: value}));
+		setScreen('settings');
+	}, [config, transitEntry]);
+	/** A default stop (known by name only) was looked up by the board: its id is saved, unless the stop was changed meanwhile. */
+	const onTransitResolved = useCallback((which: 1 | 2, station: TransitStation) => {
+		setConfig((c) => {
+			const loc = which === 1 ? c.transit.loc1 : c.transit.loc2;
+			if (!loc.station || loc.station.id) return c;          // already known, or the user chose another stop meanwhile
+			const next = setTransitLoc(c, which, {station: {id: station.id, name: station.name}});
+			saveConfig(next);
+			return next;
+		});
+	}, []);
+
 	const onChooseCity = useCallback((city: City) => {
 		updateConfig({...config, weather: {...config.weather, city, on: true}});
 		setScreen('settings');
@@ -1627,7 +1669,7 @@ export function App () {
 			{wallpaperOn && photoShow && <PhotoShow fit={config.wallpaper.fit === 'fit'} intervalSec={config.wallpaper.intervalSec} shuffle={config.wallpaper.shuffle} paused={asleep} />}
 			{wallpaperOn && !photoShow && <Wallpaper config={config.wallpaper} opacity={config.wallpaperOpacity} onProblem={(text) => showToast(text, 'error')} />}
 			{/* Home stays mounted under the other screens so it keeps its focus position. */}
-			<Home items={homeItems} favourites={config.favourites} timeFormat={timeFormat} appearance={appearance} active={screen === 'home' && !menu && !recents && !notice} paused={asleep} onActivate={onActivate} onLongPress={onLongPress} onDeadDown={config.hideSettings && !tileBack ? showTileAgain : undefined} onBack={openRecents} wake={wakes} homeKey={config.homeFocus === 'last' && !bootFirst.current ? lastOpened.current : null} focus={focus} weather={weatherLine} moveMode={moveMode} tileKeys={keysRef.current} onMovePick={onMovePick} onMoveStep={onMoveStep} onMoveExit={onMoveExit} />
+			<Home items={homeItems} favourites={config.favourites} timeFormat={timeFormat} appearance={appearance} active={screen === 'home' && !menu && !recents && !notice} paused={asleep} onActivate={onActivate} onLongPress={onLongPress} onDeadDown={config.hideSettings && !tileBack ? showTileAgain : undefined} onBack={openRecents} wake={wakes} homeKey={config.homeFocus === 'last' && !bootFirst.current ? lastOpened.current : null} focus={focus} weather={weatherLine} moveMode={moveMode} tileKeys={keysRef.current} onMovePick={onMovePick} onMoveStep={onMoveStep} onMoveExit={onMoveExit} transit={TRANSIT_ENABLED && config.transit.on ? config.transit : null} theme={config.theme} onTransitStation={onTransitResolved} />
 			{recents && screen === 'home' && <Recents icons={recentIcons} edits={config.appEdits} inputs={allInputs} sourceEdits={config.sourceEdits} width={config.recentsW} height={config.recentsH} onClose={closeRecents} onOpen={noteOpened} onToast={showToast} />}
 			{/* Settings stays mounted under the picker so it keeps its tab. */}
 			{screen === 'settings' && settingsTab === TAB.clock && appearance.clock.show && !config.showDebug && <WidgetPreview now={previewNow} format={timeFormat} config={appearance.clock} weather={weatherLine} />}
@@ -1688,6 +1730,11 @@ export function App () {
 			)}
 			{screen === 'homekey' && <HomeKey model={config.remoteModel} onModel={onRemoteModel} onClose={() => setScreen('settings')} onChanged={(code) => setSystemInfo((previous) => ({...previous, homeKey: code}))} onToast={showToast}  onAuto={onAutoMap} paused={!!notice} />}
 			{screen === 'saverpicker' && <Picker forSaver onBuiltinVideo={onChooseSaverVideo} onChoose={onChooseSaver} onClose={() => setScreen('settings')} />}
+			{TRANSIT_ENABLED && screen === 'transit' && transitEntry && (() => {
+				const loc = transitEntry.which === 1 ? config.transit.loc1 : config.transit.loc2;
+				const value = transitEntry.field === 'station' ? (loc.station ? loc.station.name : '') : transitEntry.field === 'label' ? loc.label : transitEntry.field === 'lines' ? loc.lines : loc.direction;
+				return <TransitEntry key={transitEntry.which + transitEntry.field} field={transitEntry.field} which={transitEntry.which} value={value} allowShell={isWebOS()} onStation={onTransitStation} onText={onTransitText} onClose={() => setScreen('settings')} />;
+			})()}
 			{WEATHER_ENABLED && screen === 'cities' && <CityPicker allowShell={isWebOS()} onChoose={onChooseCity} onClose={() => setScreen('settings')} />}
 			{/* W2: last, so a pop-up is in front of every screen (all screens share one layer; the later one is on top) */}
 			{notice && <Notice title={notice.title} text={notice.text} buttons={notice.buttons} onBack={notice.onBack} />}

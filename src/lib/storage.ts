@@ -22,6 +22,7 @@ import type {HomeFocus} from './homefocus';
 import {DEFAULT_CITY} from './cities';
 import {validCoords, type City, type TempUnit} from './weather';
 import {DEFAULT_LANGUAGE, languageId} from './languages';
+import {cleanTransit, DEFAULT_TRANSIT, type TransitConfig} from './transitconfig';
 
 export type WallpaperMode = 'gradient' | 'image' | 'folder';
 export type ClockFormat = 'tv' | '12h' | '24h';
@@ -276,6 +277,8 @@ export interface UserConfig {
 	clockFormat: ClockFormat;
 	clock: ClockConfig;
 	weather: WeatherConfig;
+	/** the transit departure board (Settings → Transit) */
+	transit: TransitConfig;
 	wallpaper: WallpaperConfig;
 }
 
@@ -400,6 +403,7 @@ export const DEFAULT_CONFIG: UserConfig = {
 	clockFormat: 'tv',
 	clock: DEFAULT_CLOCK,
 	weather: DEFAULT_WEATHER,
+	transit: DEFAULT_TRANSIT,
 	wallpaper: DEFAULT_WALLPAPER
 };
 
@@ -418,7 +422,7 @@ function ranged (value: unknown, name: RangeName): number {
 /** Fields left alone by the P41f reset: the user's own apps, order, names and favourites, and everything installed on the TV (helper, Home key, power-on app, saver, keep-ready, remote, debug). */
 const KEPT_ON_RESET: readonly (keyof UserConfig)[] = ['appIds', 'hiddenIds', 'sourceIds', 'tileOrder', 'favourites', 'sourceEdits', 'appEdits', 'closeHome', 'tvApps', 'showDebug', 'language', 'hideSettings',
 	'replaceHome', 'homeApp', 'homeAppPrevious', 'preloadOff', 'keepReady', 'keepRelaunch', 'takeoverHome', 'samHome', 'screensaver', 'screensaverSource', 'screensaverInterval', 'screensaverShuffle',
-	'screensaverCare', 'screensaverPowerOff', 'screensaverDim', 'screensaverDimLevel', 'screensaverFit', 'screensaverRecursive', 'powerOnApp', 'powerOnNetwork', 'remoteModel', 'remap', 'remapKept', 'defaultsV'];
+	'screensaverCare', 'screensaverPowerOff', 'screensaverDim', 'screensaverDimLevel', 'screensaverFit', 'screensaverRecursive', 'powerOnApp', 'powerOnNetwork', 'remoteModel', 'remap', 'remapKept', 'transit', 'defaultsV'];
 
 /** P41f: the saved settings with every look, widget, wallpaper, home-row and quiet-mode value at its default. */
 export function withDefaultLook (c: UserConfig): UserConfig {
@@ -595,6 +599,7 @@ export function loadConfig (): UserConfig {
 				showCity: wx.showCity !== false,
 				showRange: wx.showRange === true   // P109: a saved setting without the field reads as Off (same as a fresh install)
 			},
+			transit: cleanTransit((parsed as {transit?: unknown}).transit),   // a saved config from before the board reads as the defaults (off)
 			wallpaper: {
 				mode: path ? mode : 'gradient',
 				path,

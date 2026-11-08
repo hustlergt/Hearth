@@ -9,6 +9,7 @@ export const FREE_ORDER: ReadonlyArray<readonly string[]> = [
 	['hearth-mono-v3'],
 	['hearth-ssap-icondata-v1'],
 	['customlauncher-weather-v1'],
+	['customlauncher-transit-v1'],
 	['launcher-icon-cache-v1', 'launcher-icon-stamps-v1'],
 	['customlauncher-apps-v1'],
 	['customlauncher-wallpaper-id-v1', 'customlauncher-wallpaper-data-v1'],

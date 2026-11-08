@@ -18,6 +18,10 @@ import {varScope} from '../lib/cssvars';
 import {moveGroup, movesFor} from '../lib/tileorder';
 import {createPointerGuard} from '../lib/pointerguard';
 import {t as tt} from '../i18n';
+import {TransitWidget} from '../components/TransitWidget';
+import {TRANSIT_ENABLED} from '../config/features';
+import type {TransitConfig, TransitStation} from '../lib/transitconfig';
+import type {ThemeName} from '../theme/tokens';
 
 export interface Appearance {
 	/** icon size, % of the standard size */
@@ -87,6 +91,12 @@ interface Props {
 	onMovePick?: (key: string | null) => void;
 	onMoveStep?: (key: string, dir: 'left' | 'right') => void;
 	onMoveExit?: () => void;
+	/** the transit departure board, when it is on (null: off) */
+	transit?: TransitConfig | null;
+	/** the colour theme ('Follow theme' colours of the board) */
+	theme?: ThemeName;
+	/** a default stop's id was looked up */
+	onTransitStation?: (which: 1 | 2, station: TransitStation) => void;
 }
 
 /** OLED shift: the offset (px at 1080p) of the clock and the apps, changed once a minute through a small cycle. null = off. */
@@ -105,7 +115,7 @@ function useShift (on: boolean): {x: number; y: number} | null {
 /** The home screen: a clock and the tiles along the bottom, in one row or two.
  *  Left/Right move along a row, Up/Down change row (two rows), OK opens, holding OK opens the app's menu.
  *  Back opens the Recent apps panel. */
-export function Home ({items: allItems, favourites, timeFormat, appearance, active, paused, onActivate, onLongPress, onDeadDown, onBack, wake, homeKey, focus, weather, moveMode, tileKeys, onMovePick, onMoveStep, onMoveExit}: Props) {
+export function Home ({items: allItems, favourites, timeFormat, appearance, active, paused, onActivate, onLongPress, onDeadDown, onBack, wake, homeKey, focus, weather, moveMode, tileKeys, onMovePick, onMoveStep, onMoveExit, transit, theme, onTransitStation}: Props) {
 	const now = useClock(paused);
 	const [position, setPosition] = useState<RowsPosition>(initialPosition);
 	// Favourites: with any chosen, the first row holds them alone; Down brings up a second row with everything else, Up hides it again.
@@ -347,6 +357,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 		<div class={`screen${active ? '' : ' screen--away'}${shift ? ' screen--shift' : ''}${shiftVars.cls ? ' ' + shiftVars.cls : ''}`} style={shiftVars.css || undefined}>
 			{moveMode && <div class="movehint"><div class="movehint__main">{tt('move.hint')}</div><div class="movehint__sub">{tt('move.hintBack')}</div></div>}
 			{appearance.clock.show && !moveMode && <Clock now={now} format={timeFormat} config={appearance.clock} weather={weather} />}
+			{TRANSIT_ENABLED && transit && !moveMode && onTransitStation && <TransitWidget config={transit} clock={appearance.clock} theme={theme || 'black'} paused={paused} shift={shift} onStation={onTransitStation} />}
 			<div class={classes} style={rowStyle}>
 				{sizes.map((size, r) => {
 					const start = offsets[r];

@@ -226,6 +226,89 @@ html, body {
 	stroke-linejoin: round;
 }
 
+/* ---------- transit departure board (TransitWidget.tsx) ----------
+   For Chromium 38 too: no gap, no custom properties, no sticky; flexbox with margins; sizes in em of the row size (set inline). */
+
+.transit {
+	position: absolute;       /* top, left, width, font, colour, shadow and transform are set inline */
+	white-space: nowrap;
+	pointer-events: none;
+	z-index: 0;
+	-webkit-transition: opacity 300ms ease;
+	transition: opacity 300ms ease;
+}
+.transit__pages { position: relative; }
+.transit__page { -webkit-transition: opacity 300ms ease; transition: opacity 300ms ease; }
+.transit__page--on { position: relative; opacity: 1; }
+.transit__page--off { position: absolute; left: 0; top: 0; right: 0; opacity: 0; }
+.transit__head {
+	display: -webkit-box; display: -webkit-flex; display: flex;
+	-webkit-align-items: center; align-items: center;
+	font-size: 0.8em;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+}
+.transit__icon {
+	-webkit-flex: 0 0 auto; flex: 0 0 auto;
+	width: 1.3em; height: 1.3em;
+	margin-right: 0.45em;
+	fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
+.transit__stop { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.transit__stale { -webkit-flex: 0 0 auto; flex: 0 0 auto; margin-left: 0.6em; font-size: 0.75em; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.08em; }
+.transit__pager { -webkit-flex: 0 0 auto; flex: 0 0 auto; margin-left: 0.6em; font-size: 0.8em; opacity: 0.6; }
+.transit__rule { height: 2px; margin-top: 0.35em; margin-bottom: 0.3em; opacity: 0.45; }
+.transit__message { padding-top: 0.25em; padding-bottom: 0.25em; font-size: 0.85em; opacity: 0.8; white-space: normal; }
+.transit__row {
+	display: -webkit-box; display: -webkit-flex; display: flex;
+	-webkit-align-items: center; align-items: center;
+	height: 1.55em;
+}
+.transit__badge {
+	-webkit-flex: 0 0 auto; flex: 0 0 auto;
+	min-width: 2.3em;
+	padding-left: 0.25em; padding-right: 0.25em;
+	margin-right: 0.55em;
+	border-radius: 0.3em;
+	font-size: 0.85em;
+	font-weight: 700;
+	line-height: 1.45;
+	text-align: center;
+	text-shadow: none;
+	-webkit-box-sizing: border-box; box-sizing: border-box;
+}
+.transit__to { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.transit__delay { -webkit-flex: 0 0 auto; flex: 0 0 auto; width: 2.4em; text-align: right; }
+.transit__delay-badge {
+	display: inline-block;
+	padding-left: 0.25em; padding-right: 0.25em;
+	border-radius: 0.25em;
+	font-size: 0.65em;
+	font-weight: 700;
+	line-height: 1.45;
+	color: #1A1A1A;
+	text-shadow: none;
+}
+/* the minutes: a fixed width, right-aligned, so the digits never move (tabular figures where the engine has them) */
+.transit__min {
+	-webkit-flex: 0 0 auto; flex: 0 0 auto;
+	width: 2.2em;
+	text-align: right;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	-webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum";
+}
+.transit__min--wide { width: 3.6em; }
+.transit__now {
+	width: 1.05em; height: 1.05em;
+	vertical-align: -0.12em;
+	fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+	-webkit-animation: transit-pulse 1.4s ease-in-out infinite;
+	animation: transit-pulse 1.4s ease-in-out infinite;
+}
+@-webkit-keyframes transit-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes transit-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
 /* ---------- rows ---------- */
 
 .rows {

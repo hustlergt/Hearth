@@ -5,6 +5,11 @@ declare const __WEATHER__: boolean | undefined;
 
 export const WEATHER_ENABLED: boolean = typeof __WEATHER__ === 'undefined' ? true : __WEATHER__;
 
+declare const __TRANSIT__: boolean | undefined;
+
+/** The Basel departure board (HEARTH_TRANSIT=0 npm run build leaves it out: widget, fetching and the Settings tab are removed from the bundle). */
+export const TRANSIT_ENABLED: boolean = typeof __TRANSIT__ === 'undefined' ? true : __TRANSIT__;
+
 /** The "Tests" tab (what a TV allows a web app to do) is in every build; Settings shows it with the Debug tab (Options → Show the Debug tab). */
 export const PROBE_ENABLED = true;
 

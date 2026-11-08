@@ -19,7 +19,8 @@ import {TILE_SHAPE_IDS, tileShapeText} from './tileshape';
 import {CLOCK_COLOR_IDS, LABEL_COLOR_IDS, iconColorValues, iconColorEffective, iconColorText, colorInfo, labelColorText, withoutInk, type ClockColor} from './clockcolor';
 import {baseName} from './wallpaper';
 import {SAVER_FIT_VALUES, fitText, SAVER_INTERVAL_VALUES, SAVER_POWEROFF_VALUES, powerOffText, SAVER_PHOTOS, SAVER_VIDEO, saverIsSlideshow} from './saverconfig';
-import {WEATHER_ENABLED} from '../config/features';
+import {TRANSIT_ENABLED, WEATHER_ENABLED} from '../config/features';
+import {TRANSIT_COLOR_IDS, TRANSIT_CYCLE_VALUES, TRANSIT_FONT_IDS, TRANSIT_LEFT_VALUES, TRANSIT_OPACITY_VALUES, TRANSIT_ROW_VALUES, TRANSIT_SIZE_VALUES, TRANSIT_TOP_VALUES, type TransitConfig, type TransitLocation} from './transitconfig';
 import type {TempUnit} from './weather';
 import {lastFailure, rootState, type RootState} from './failure';
 import {APP_ID} from '../config/constants';
@@ -31,7 +32,7 @@ import {hasPack, packName} from '../i18n/pack';
 import {td} from '../i18n';
 import {HEARTH_VERSION} from '../config/version';
 
-export type PrefTab = 'look' | 'clock' | 'wallpaper' | 'saver' | 'system';
+export type PrefTab = 'look' | 'clock' | 'transit' | 'wallpaper' | 'saver' | 'system';
 
 /** Facts about the TV (not user settings) that some rows display. */
 export interface SystemInfo {
@@ -259,6 +260,40 @@ const WEATHER_PREFS: PrefDef[] = [
 		(c) => c.weather.showRange, (c, v) => ({...c, weather: {...c.weather, showRange: v}}))
 ];
 
+const CLOCK_ALIGNS: readonly ClockAlign[] = ['left', 'center', 'right'];
+const alignText = (v: ClockAlign): string => td(`align.${v}`);
+
+/** The Transit tab's rows (left out of builds made without the board). The text rows open the entry screen (app.tsx). */
+const tr = (c: UserConfig, patch: Partial<TransitConfig>): UserConfig => ({...c, transit: {...c.transit, ...patch}});
+const locOf = (c: UserConfig, n: 1 | 2): TransitLocation => (n === 1 ? c.transit.loc1 : c.transit.loc2);
+const notSet = (v: string): string => (v.trim() ? v : td('transit.none'));
+function transitLocationRows (n: 1 | 2): PrefDef[] {
+	const own = n === 2 ? (c: UserConfig) => c.transit.loc2On : undefined;
+	return [
+		{id: `transit${n}Station`, tab: 'transit', kind: 'action', visible: own, text: (c) => { const s = locOf(c, n).station; return s ? s.name : td('pref.notSet'); }},
+		{id: `transit${n}Label`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).label)},
+		{id: `transit${n}Lines`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).lines)},
+		{id: `transit${n}Dir`, tab: 'transit', kind: 'action', visible: own, text: (c) => notSet(locOf(c, n).direction)}
+	];
+}
+const transitColorText = (v: string): string => (v === 'station' || v === 'lines' || v === 'widget' ? td(`transit.color.${v}`) : colorInfo(v as ClockColor).label);
+const TRANSIT_PREFS: PrefDef[] = [
+	toggle('transitOn', 'transit', (c) => c.transit.on, (c, v) => tr(c, {on: v})),
+	...transitLocationRows(1),
+	toggle('transit2On', 'transit', (c) => c.transit.loc2On, (c, v) => tr(c, {loc2On: v})),
+	...transitLocationRows(2),
+	{...choice('transitCycle', 'transit', TRANSIT_CYCLE_VALUES, (c) => c.transit.cycleSec, (c, v) => tr(c, {cycleSec: v}), (v) => (v === 0 ? td('transit.cycleOff') : td('time.seconds', {n: v}))), visible: (c) => c.transit.loc2On},
+	choice('transitRows', 'transit', TRANSIT_ROW_VALUES, (c) => c.transit.rows, (c, v) => tr(c, {rows: v}), (v) => String(v)),
+	choice('transitCountdown', 'transit', ['tick', 'min'] as const, (c) => c.transit.countdown, (c, v) => tr(c, {countdown: v}), (v) => (v === 'min' ? '3 min' : '3\'')),
+	choice('transitColor', 'transit', TRANSIT_COLOR_IDS, (c) => c.transit.color, (c, v) => tr(c, {color: v}), transitColorText),
+	choice('transitAlign', 'transit', CLOCK_ALIGNS, (c) => c.transit.align, (c, v) => tr(c, {align: v}), (v) => alignText(v)),
+	choice('transitLeft', 'transit', TRANSIT_LEFT_VALUES, (c) => c.transit.left, (c, v) => tr(c, {left: v}), (v) => `${v}%`),
+	choice('transitTop', 'transit', TRANSIT_TOP_VALUES, (c) => c.transit.top, (c, v) => tr(c, {top: v}), (v) => `${v}%`),
+	choice('transitSize', 'transit', TRANSIT_SIZE_VALUES, (c) => c.transit.size, (c, v) => tr(c, {size: v}), (v) => `${v}%`),
+	choice('transitFont', 'transit', TRANSIT_FONT_IDS, (c) => c.transit.font, (c, v) => tr(c, {font: v}), (v) => (v === 'clock' ? td('transit.sameAsClock') : fontLabel(v))),
+	choice('transitOpacity', 'transit', TRANSIT_OPACITY_VALUES, (c) => c.transit.opacity, (c, v) => tr(c, {opacity: v}), (v) => (v === 0 ? td('transit.sameAsClock') : `${v}%`))
+];
+
 
 // ----- merged rows (P35c): one row over two saved values; the saved values themselves are unchanged -----
 type Level = 'off' | 'light' | 'medium' | 'strong';
@@ -272,8 +307,6 @@ const iconStyleOf = (c: UserConfig): IconStyleRow => (isMonoStyle(c.iconStyle) |
 /** Accent mono is not offered in OLED black (P59b) */
 const iconStyleValues = (c: UserConfig): readonly IconStyleRow[] => (c.theme === 'black' ? ICON_STYLES.filter((v) => v !== 'accent') : ICON_STYLES);
 
-const CLOCK_ALIGNS: readonly ClockAlign[] = ['left', 'center', 'right'];
-const alignText = (v: ClockAlign): string => td(`align.${v}`);
 
 type ShadowLevel = Level | 'max';
 const SHADOW_LEVELS: readonly ShadowLevel[] = ['off', 'light', 'medium', 'strong', 'max'];
@@ -596,6 +629,11 @@ const LAYOUT: [PrefTab, string, string[]][] = [
 	['clock', 'Time and date', ['clockFormat', 'showPeriod', 'showDate']],
 	['clock', 'Widget look', ['clockSize', 'clockFont', 'clockWeight', 'clockTop', 'clockLeft', 'clockAlign', 'clockColor', 'clockShadow', 'clockScrim', 'clockOpacity']],
 	['clock', 'Weather', ['weatherOn', 'weatherUnit', 'weatherCity', 'weatherCityName', 'weatherRange']],
+	['transit', '', ['transitOn']],
+	['transit', 'Location 1', ['transit1Station', 'transit1Label', 'transit1Lines', 'transit1Dir']],
+	['transit', 'Location 2', ['transit2On', 'transit2Station', 'transit2Label', 'transit2Lines', 'transit2Dir', 'transitCycle']],
+	['transit', 'Board', ['transitRows', 'transitCountdown', 'transitColor', 'transitSize', 'transitFont', 'transitOpacity']],
+	['transit', 'Position', ['transitAlign', 'transitLeft', 'transitTop']],
 	['wallpaper', '', ['wallpaper', 'wallpaperFit', 'interval', 'shuffle', 'wallpaperOpacity', 'fadeStrength']],   // P66b: few rows, no groups (was Background and Picture)
 	['saver', '', ['screensaver', 'screensaverPictures', 'screensaverInterval', 'screensaverShuffle', 'screensaverFit', 'screensaverCare', 'screensaverDim', 'screensaverPowerOff', 'screensaverShow']],
 	['system', '', ['updates', 'language', 'languageRemove']],
@@ -608,10 +646,14 @@ const LAYOUT: [PrefTab, string, string[]][] = [
 const PLACE: Record<string, {tab: PrefTab; group: string; order: number}> = {};
 LAYOUT.forEach(([tab, group, ids], g) => ids.forEach((id, i) => { PLACE[id] = {tab, group, order: g * 100 + i}; }));
 
-const ALL_PREFS: PrefDef[] = WEATHER_ENABLED ? BASE_PREFS.concat(WEATHER_PREFS) : BASE_PREFS;
+const ALL_PREFS: PrefDef[] = BASE_PREFS.concat(WEATHER_ENABLED ? WEATHER_PREFS : [], TRANSIT_ENABLED ? TRANSIT_PREFS : []);
 export const PREFS: Pref[] = ALL_PREFS.map((p) => withTexts(((): PrefDef => {
 	if (!PLACE[p.id]) return p;
 	const placed = {...p, tab: PLACE[p.id].tab, group: PLACE[p.id].group};
+	if (placed.tab === 'transit' && p.id !== 'transitOn') {
+		const ownT = p.visible;       // like the Widget tab: with the board off its rows are hidden
+		return {...placed, visible: (c: UserConfig) => c.transit.on && (!ownT || ownT(c))};
+	}
 	if (placed.tab !== 'clock' || p.id === 'widgetOn') return placed;
 	const own = p.visible;       // P41f: with the widget off its rows are hidden
 	return {...placed, visible: (c: UserConfig) => c.clock.show && (!own || own(c))};
