@@ -25,5 +25,9 @@
   "dependencies": {
     "preact": "^10.29.8"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "@webos-tools/cli@3.2.6": true
+  }
 }
