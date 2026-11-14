@@ -659,17 +659,20 @@ const LAYOUT: [PrefTab, string, string[]][] = [
 const PLACE: Record<string, {tab: PrefTab; group: string; order: number}> = {};
 LAYOUT.forEach(([tab, group, ids], g) => ids.forEach((id, i) => { PLACE[id] = {tab, group, order: g * 100 + i}; }));
 
+/** Tabs with an on/off row at the top: while it is off, the tab's other rows are hidden (P41f: Widget; Transit). */
+const MASTER_SWITCH: Partial<Record<PrefTab, {id: string; on: (c: UserConfig) => boolean}>> = {
+	clock: {id: 'widgetOn', on: (c) => c.clock.show},
+	transit: {id: 'transitOn', on: (c) => c.transit.on}
+};
+
 const ALL_PREFS: PrefDef[] = BASE_PREFS.concat(WEATHER_ENABLED ? WEATHER_PREFS : [], TRANSIT_ENABLED ? TRANSIT_PREFS : []);
 export const PREFS: Pref[] = ALL_PREFS.map((p) => withTexts(((): PrefDef => {
 	if (!PLACE[p.id]) return p;
 	const placed = {...p, tab: PLACE[p.id].tab, group: PLACE[p.id].group};
-	if (placed.tab === 'transit' && p.id !== 'transitOn') {
-		const ownT = p.visible;       // like the Widget tab: with the board off its rows are hidden
-		return {...placed, visible: (c: UserConfig) => c.transit.on && (!ownT || ownT(c))};
-	}
-	if (placed.tab !== 'clock' || p.id === 'widgetOn') return placed;
-	const own = p.visible;       // P41f: with the widget off its rows are hidden
-	return {...placed, visible: (c: UserConfig) => c.clock.show && (!own || own(c))};
+	const master = MASTER_SWITCH[placed.tab];
+	if (!master || p.id === master.id) return placed;
+	const own = p.visible;
+	return {...placed, visible: (c: UserConfig) => master.on(c) && (!own || own(c))};
 })()));
 
 export function findPref (id: string): Pref | undefined {

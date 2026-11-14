@@ -275,6 +275,22 @@ eq(p.resetLook({...c0, clock: {...c0.clock, color: 'black', opacity: 30}}).clock
   s.loadConfig();
   eq(BK in store, false, 'P106: a fresh install has no backup');
 }
+
+// An arrow step waits (saveConfigSoon); a choice made right after is written at once and the waiting step never overwrites it
+{
+  const win = globalThis.window;
+  globalThis.window = {setTimeout, clearTimeout, addEventListener () {}};
+  const base = s.loadConfig();
+  s.saveConfig(base);
+  s.saveConfigSoon({...base, iconScale: 110});
+  eq(JSON.parse(store[KEY]).iconScale === 110, false, 'an arrow step is not written at once');
+  s.saveConfig({...base, iconScale: 110, orderByRecent: !base.orderByRecent});
+  eq([JSON.parse(store[KEY]).iconScale, JSON.parse(store[KEY]).orderByRecent], [110, !base.orderByRecent], 'a choice is written at once, with the step before it');
+  store[KEY] = JSON.stringify({...base, iconScale: 120});
+  await new Promise((r) => setTimeout(r, 350));
+  eq(JSON.parse(store[KEY]).iconScale, 120, 'the waiting step was dropped: nothing older is written later');
+  globalThis.window = win;
+}
 process.exit(fail ? 1 : 0);
 
 // ---- P35b: groups ----

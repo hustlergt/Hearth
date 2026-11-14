@@ -847,8 +847,10 @@ export function App () {
 		if (outcome.iconsFailed) notes.push(`${outcome.iconsFailed} icons could not be read or kept.`);
 		setNotice({title: diff || outcome.iconsFailed ? tt('app.withDifferences', {title}) : title, text: notes.join(' '), buttons: [{label: tt('app.ok'), tone: 'light', run: () => setNotice(null)}], onBack: () => setNotice(null)});
 	};
-	// Settings presses (holding an arrow steps a value many times a second): saved once the presses stop (storage.ts)
-	const updateConfig = (next: UserConfig) => { setConfig(next); saveConfigSoon(next); };
+	// A change the user made: written at once (a choice must survive the TV being switched off right after it)
+	const updateConfig = (next: UserConfig) => { setConfig(next); saveConfig(next); };
+	// An arrow step on a value (holding the arrow steps it many times a second): saved once the presses stop (storage.ts)
+	const stepConfig = (next: UserConfig) => { setConfig(next); saveConfigSoon(next); };
 	// I2: for callbacks that run later (after an await): applies the change to the CURRENT settings, never to the copy from click time
 	const patchConfig = (patch: Partial<UserConfig> | ((c: UserConfig) => Partial<UserConfig>)) => setConfig((c) => { const next = {...c, ...(typeof patch === 'function' ? patch(c) : patch)}; saveConfig(next); return next; });
 
@@ -1366,7 +1368,7 @@ export function App () {
 			return;
 		}
 		const next = applyPref(config, optionId, press);
-		if (next !== config) updateConfig(next);
+		if (next !== config) (press === 'ok' ? updateConfig : stepConfig)(next);
 	}, [config, showToast, systemInfo, tvInput, openGroups]);
 
 	const onRefresh = useCallback(() => {
@@ -1677,7 +1679,7 @@ export function App () {
 			{wallpaperOn && photoShow && <PhotoShow fit={config.wallpaper.fit === 'fit'} intervalSec={config.wallpaper.intervalSec} shuffle={config.wallpaper.shuffle} paused={asleep} />}
 			{wallpaperOn && !photoShow && <Wallpaper config={config.wallpaper} opacity={config.wallpaperOpacity} onProblem={(text) => showToast(text, 'error')} />}
 			{/* Home stays mounted under the other screens so it keeps its focus position. */}
-			<Home items={homeItems} favourites={config.favourites} timeFormat={timeFormat} appearance={appearance} active={screen === 'home' && !menu && !recents && !notice} paused={asleep} onActivate={onActivate} onLongPress={onLongPress} onDeadDown={config.hideSettings && !tileBack ? showTileAgain : undefined} onBack={openRecents} wake={wakes} homeKey={config.homeFocus === 'last' && !bootFirst.current ? lastOpened.current : null} focus={focus} weather={weatherLine} moveMode={moveMode} tileKeys={keysRef.current} onMovePick={onMovePick} onMoveStep={onMoveStep} onMoveExit={onMoveExit} transit={TRANSIT_ENABLED && config.transit.on ? config.transit : null} theme={config.theme} onTransitStation={onTransitResolved} />
+			<Home items={homeItems} favourites={config.favourites} timeFormat={timeFormat} appearance={appearance} active={screen === 'home' && !menu && !recents && !notice} covered={screen !== 'home'} paused={asleep} onActivate={onActivate} onLongPress={onLongPress} onDeadDown={config.hideSettings && !tileBack ? showTileAgain : undefined} onBack={openRecents} wake={wakes} homeKey={config.homeFocus === 'last' && !bootFirst.current ? lastOpened.current : null} focus={focus} weather={weatherLine} moveMode={moveMode} tileKeys={keysRef.current} onMovePick={onMovePick} onMoveStep={onMoveStep} onMoveExit={onMoveExit} transit={TRANSIT_ENABLED && config.transit.on ? config.transit : null} theme={config.theme} onTransitStation={onTransitResolved} />
 			{recents && screen === 'home' && <Recents icons={recentIcons} edits={config.appEdits} inputs={allInputs} sourceEdits={config.sourceEdits} width={config.recentsW} height={config.recentsH} onClose={closeRecents} onOpen={noteOpened} onToast={showToast} />}
 			{/* Settings stays mounted under the picker so it keeps its tab. */}
 			{screen === 'settings' && settingsTab === TAB.clock && appearance.clock.show && !config.showDebug && <WidgetPreview now={previewNow} format={timeFormat} config={appearance.clock} weather={weatherLine} />}

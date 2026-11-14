@@ -118,6 +118,27 @@ eq(t.readTransitCache(), {}, 'an unreadable copy reads as empty');
 
 // ---- back-off ----
 eq([0, 1, 2, 3, 9].map(net.nextDelay), [60000, 60000, 120000, 300000, 300000], 'poll 60 s; after failures 60 -> 120 -> 300 s (max)');
+eq(net.resumeDelay('1:15', 0, 1000), 0, 'a new poller with no failures behind it starts when asked');
+net.noteRound('1:15', 2, 1000);
+eq(net.resumeDelay('1:15', 0, 31000), 90000, 'a poller started again during a back-off waits out the rest of it');
+eq(net.resumeDelay('1:15', 0, 200000), 0, 'a back-off already over: starts at once');
+eq(net.resumeDelay('2:15', 2000, 31000), 2000, 'other stops: the back-off does not apply');
+net.noteRound('1:15', 0, 1000);
+eq(net.resumeDelay('1:15', 30000, 1000), 30000, 'after a good round: the requested wait');
+
+// ---- poll targets ----
+const plainLoc = {station: {id: '1', name: 'A'}, label: '', lines: '', direction: '', platform: ''};
+const filteredLoc = {...plainLoc, lines: '8'};
+eq(net.pollTargets([plainLoc, filteredLoc]), [{id: '1', limit: t.LIMIT_FILTERED}], 'same stop, unfiltered then filtered: one fetch with the larger limit');
+eq(net.pollTargets([filteredLoc, plainLoc]), [{id: '1', limit: t.LIMIT_FILTERED}], 'same stop, filtered first: the larger limit stays');
+eq(net.pollTargets([plainLoc, {...plainLoc, station: {id: '2', name: 'B'}}]).map((x) => x.id), ['1', '2'], 'two stops: two fetches');
+eq(net.pollTargets([{...plainLoc, station: {id: '', name: 'Default'}}, {...plainLoc, station: null}]), [], 'stops without an id yet are left out');
+
+// ---- row keys ----
+const keyDep = (line, platform) => ({line, to: 'X', platform, ts: 100, delay: 0, category: 'T', operator: 'BVB', live: true});
+const keys = t.rowKeys([keyDep('8', 'C'), keyDep('8', 'D'), keyDep('8', 'C')]);
+eq(new Set(keys).size, 3, 'row keys are unique, even for an entry listed twice');
+eq(t.rowKeys([keyDep('8', 'C')]), keys.slice(0, 1), 'the first of a kind keeps its plain key');
 
 // ---- line colours ----
 eq(col.lineColor('nonexistent-line'), col.STATION_AMBER, 'unknown line: station amber');

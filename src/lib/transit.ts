@@ -229,3 +229,14 @@ export function writeTransitCache (boards: Record<string, Board>, keep: string[]
 	keep.forEach((id) => { if (boards[id]) out[id] = boards[id]; });
 	try { localStorage.setItem(TRANSIT_CACHE_KEY, JSON.stringify(out)); } catch { /* storage full: it is just fetched again */ }
 }
+
+/** Keys for the rows: line, destination, time and platform, plus a count for entries the service lists twice (coupled or
+ *  duplicated courses), so no two rows share a key. */
+export function rowKeys (rows: Departure[]): string[] {
+	const seen: Record<string, number> = {};
+	return rows.map((d) => {
+		const k = `${d.line}|${d.to}|${d.ts}|${d.platform}`;
+		seen[k] = (seen[k] || 0) + 1;
+		return seen[k] > 1 ? `${k}|${seen[k]}` : k;
+	});
+}

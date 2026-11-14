@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'preact/hooks';
 import {PickerIcon} from '../components/Glyph';
 import {useKeys, clamp, type NavKey} from '../hooks/useKeys';
+import {useSearch} from '../hooks/useSearch';
 import {PRESET_CITIES} from '../lib/cities';
 import {searchCities} from '../lib/weathernet';
 import {themeCities} from '../lib/theme';
@@ -27,10 +28,9 @@ const VISIBLE_ROWS = 9;
 /** Choose the city for the weather: a short list to pick from, or a search by name (typed with the TV's
  *  on-screen keyboard). OK on a city chooses it; Back goes up. */
 export function CityPicker ({allowShell, onChoose, onClose}: Props) {
-	const [results, setResults] = useState<City[] | null>(null);       // null: showing the list; otherwise search results
+	const search = useSearch<City>((text) => searchCities(text, allowShell));
+	const {results, busy, failed} = search;          // results null: showing the list; otherwise search results
 	const [typing, setTyping] = useState(false);
-	const [busy, setBusy] = useState(false);
-	const [failed, setFailed] = useState(false);
 	const [index, setIndex] = useState(0);
 	const input = useRef<HTMLInputElement>(null);
 
@@ -55,21 +55,15 @@ export function CityPicker ({allowShell, onChoose, onClose}: Props) {
 		setTyping(false);
 		if (input.current) input.current.blur();
 		if (text.trim().length < 2) return;
-		setResults([]);
-		setBusy(true);
-		setFailed(false);
 		setIndex(0);
-		searchCities(text, allowShell).then(
-			(list) => { setResults(list); setBusy(false); setIndex(list.length ? (results === null ? 2 : 2) : 0); },
-			() => { setResults([]); setBusy(false); setFailed(true); }
-		);
+		void search.run(text, true).then((list) => { if (list && list.length) setIndex(2); });
 	};
 
 	const activate = (i: number) => {
 		const row = rows[i];
 		if (!row) return;
 		if (row.kind === 'search') { setIndex(i); setTyping(true); }
-		else if (row.kind === 'back') { setResults(null); setIndex(0); }
+		else if (row.kind === 'back') { search.reset(); setIndex(0); }
 		else if (row.kind === 'city' && row.city) onChoose(row.city);
 	};
 
@@ -78,7 +72,7 @@ export function CityPicker ({allowShell, onChoose, onClose}: Props) {
 			case 'up': setIndex((i) => clamp(i - 1, 0, Math.max(0, rows.length - 1))); break;
 			case 'down': setIndex((i) => clamp(i + 1, 0, Math.max(0, rows.length - 1))); break;
 			case 'enter': activate(index); break;
-			case 'back': if (results !== null) { setResults(null); setIndex(0); } else onClose(); break;
+			case 'back': if (results !== null) { search.reset(); setIndex(0); } else onClose(); break;
 			default: break;
 		}
 		return true;

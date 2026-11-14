@@ -67,6 +67,8 @@ interface Props {
 	timeFormat: TimeFormat;
 	appearance: Appearance;
 	active: boolean;
+	/** another screen (Settings) is drawn over the home screen: the transit board stops moving but keeps its data fresh */
+	covered?: boolean;
 	/** the launcher is in the background: stop the clock ticking */
 	paused?: boolean;
 	onActivate: (item: TileModel) => void;
@@ -115,7 +117,7 @@ function useShift (on: boolean): {x: number; y: number} | null {
 /** The home screen: a clock and the tiles along the bottom, in one row or two.
  *  Left/Right move along a row, Up/Down change row (two rows), OK opens, holding OK opens the app's menu.
  *  Back opens the Recent apps panel. */
-export function Home ({items: allItems, favourites, timeFormat, appearance, active, paused, onActivate, onLongPress, onDeadDown, onBack, wake, homeKey, focus, weather, moveMode, tileKeys, onMovePick, onMoveStep, onMoveExit, transit, theme, onTransitStation}: Props) {
+export function Home ({items: allItems, favourites, timeFormat, appearance, active, covered, paused, onActivate, onLongPress, onDeadDown, onBack, wake, homeKey, focus, weather, moveMode, tileKeys, onMovePick, onMoveStep, onMoveExit, transit, theme, onTransitStation}: Props) {
 	const now = useClock(paused);
 	const [position, setPosition] = useState<RowsPosition>(initialPosition);
 	// Favourites: with any chosen, the first row holds them alone; Down brings up a second row with everything else, Up hides it again.
@@ -158,6 +160,22 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 	const switchRef = useRef(switchable);
 	switchRef.current = switchable;
 	useEffect(() => { if (!switchable && boardFocus) setBoardFocus(false); }, [switchable]);          // eslint-disable-line react-hooks/exhaustive-deps
+	// OK on the board switches location. Pointing at it and pressing OK may arrive as a click and as an OK key both:
+	// presses closer together than this count once.
+	const lastBoardSwitch = useRef(0);
+	const switchBoard = () => {
+		const now = Date.now();
+		if (now - lastBoardSwitch.current < 400) return;
+		lastBoardSwitch.current = now;
+		setBoardToggle((n) => n + 1);
+	};
+	// the Magic Remote pointer on the board gives it the highlight, as ↑ from the top row does
+	const boardPointerOver = () => { if (switchRef.current && !moveRef.current && !quietRef.current) setBoardFocus(true); };
+	const boardPointerPress = () => {
+		if (!switchRef.current || moveRef.current || quietRef.current) return;
+		setBoardFocus(true);
+		switchBoard();
+	};
 	const moveRef = useRef(moveMode);                     // move mode: the key handler is registered once, so it reads refs
 	moveRef.current = moveMode;
 	const moveCb = useRef({onMovePick, onMoveStep, onMoveExit});
@@ -330,7 +348,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 	useKeys(handleKey, active);
 	useOkPress({
 		onPress: () => {
-			if (boardRef.current && !quietRef.current && !moveRef.current) { setBoardToggle((n) => n + 1); return; }       // the other location, at once
+			if (boardRef.current && !quietRef.current && !moveRef.current) { switchBoard(); return; }       // the other location, at once
 			if (!selectedItem || quietRef.current) return;
 			const mv = moveRef.current;
 			if (mv) {                                          // move mode: OK picks the tile up or puts it down
@@ -374,7 +392,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 		<div class={`screen${active ? '' : ' screen--away'}${shift ? ' screen--shift' : ''}${shiftVars.cls ? ' ' + shiftVars.cls : ''}`} style={shiftVars.css || undefined}>
 			{moveMode && <div class="movehint"><div class="movehint__main">{tt('move.hint')}</div><div class="movehint__sub">{tt('move.hintBack')}</div></div>}
 			{appearance.clock.show && !moveMode && <Clock now={now} format={timeFormat} config={appearance.clock} weather={weather} />}
-			{TRANSIT_ENABLED && transit && !moveMode && onTransitStation && <TransitWidget config={transit} clock={appearance.clock} theme={theme || 'black'} paused={paused} shift={shift} onStation={onTransitStation} focused={boardFocus && switchable && active} toggle={boardToggle} />}
+			{TRANSIT_ENABLED && transit && !moveMode && onTransitStation && <TransitWidget config={transit} clock={appearance.clock} theme={theme || 'black'} paused={paused} covered={covered} shift={shift} onStation={onTransitStation} focused={boardFocus && switchable && active} toggle={boardToggle} onPointerOver={switchable && active ? boardPointerOver : undefined} onPointerPress={switchable && active ? boardPointerPress : undefined} />}
 			<div class={classes} style={rowStyle}>
 				{sizes.map((size, r) => {
 					const start = offsets[r];
@@ -384,7 +402,7 @@ export function Home ({items: allItems, favourites, timeFormat, appearance, acti
 							items={items.slice(start, start + size)}
 							focused={r === at.row && !(boardFocus && switchable)}
 							selected={at.cols[r]}
-							onSelect={(col) => { pendingKey.current = null; setPosition({row: r, cols: at.cols.map((c, i) => (i === r ? col : c))}); }}
+							onSelect={(col) => { pendingKey.current = null; setBoardFocus(false); setPosition({row: r, cols: at.cols.map((c, i) => (i === r ? col : c))}); }}
 							onActivate={(col) => { if (!moveRef.current) onActivate(items[start + col]); }}
 							tileSize={tileSize}
 							tileGap={tileGap}

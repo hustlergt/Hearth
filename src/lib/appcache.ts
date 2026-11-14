@@ -60,3 +60,10 @@ export function keepKnownIcons (next: AppEntry[], previous: AppEntry[]): AppEntr
 		return {...a, iconUrl: old.iconUrl};
 	});
 }
+
+/** Is the stored app list already `text`? `written` is what this session last wrote (or read at start). The storage guard
+ *  may free the key to make room for a settings save, so a matching `written` alone is not enough: the key must still be there. */
+export function appsCacheCurrent (text: string, written: string | null, store: {getItem: (key: string) => string | null}): boolean {
+	if (text !== written) return false;
+	try { return store.getItem(APPS_CACHE_KEY) !== null; } catch { return false; }
+}

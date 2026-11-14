@@ -26,6 +26,15 @@ eq(c.sameApps(back, back.map((a, i) => (i === 1 ? {...a, title: 'Changed'} : a))
 const rem = [{id: 'p', title: 'P', removable: true}, {id: 'q', title: 'Q', removable: false}, {id: 'r', title: 'R'}];
 eq(c.deserializeApps(c.serializeApps(rem), () => undefined).map((x) => x.removable), [true, false, undefined], "LG's removable flag survives the cache (true, false, unknown)");
 
+// ---- skipping an unchanged write ----
+const kv = {};
+const fake = {getItem: (k) => (k in kv ? kv[k] : null)};
+eq(c.appsCacheCurrent('[1]', '[1]', fake), false, 'same text but the key is gone (freed by the storage guard): written again');
+kv[c.APPS_CACHE_KEY] = '[1]';
+eq(c.appsCacheCurrent('[1]', '[1]', fake), true, 'same text and still stored: not written again');
+eq(c.appsCacheCurrent('[2]', '[1]', fake), false, 'a changed list is written');
+eq(c.appsCacheCurrent('[1]', '[1]', {getItem: () => { throw new Error('blocked'); }}), false, 'unreadable storage: written');
+
 // ---- keeping icons already known ----
 const D1 = 'data:image/png;base64,AAAA', D2 = 'data:image/png;base64,BBBB';
 const before = [{id: 'a', title: 'A', iconUrl: D1, iconPath: '/i/a.png'}, {id: 'b', title: 'B', iconUrl: D2, iconPath: '/i/b.png'}];

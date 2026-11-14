@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'preact/hooks';
 import {PickerIcon} from '../components/Glyph';
 import {useKeys, clamp, type NavKey} from '../hooks/useKeys';
+import {useSearch} from '../hooks/useSearch';
 import {searchStations} from '../lib/transitnet';
 import type {TransitStation} from '../lib/transitconfig';
 import {t as tt} from '../i18n';
@@ -38,13 +39,10 @@ export function TransitEntry ({field, which, value, allowShell, onStation, onTex
 	const searching = field === 'station';
 	const [typing, setTyping] = useState(true);
 	const [query, setQuery] = useState(searching ? '' : value);
-	const [results, setResults] = useState<TransitStation[] | null>(null);       // null: nothing searched yet
-	const [busy, setBusy] = useState(false);
-	const [failed, setFailed] = useState(false);
+	const search = useSearch<TransitStation>((text) => searchStations(text, allowShell).then((list) => list.map((s) => ({id: s.id, name: s.name}))));
+	const {results, busy, failed} = search;          // results null: nothing searched yet
 	const [index, setIndex] = useState(0);
 	const input = useRef<HTMLInputElement>(null);
-	const timer = useRef(0);
-	const seq = useRef(0);
 
 	const rows: Row[] = [{key: 'input', kind: 'input', label: query || (searching ? tt('transit.searchHint') : tt('transit.emptyText')), detail: searching && value ? tt('transit.current', {name: value}) : undefined}];
 	if (searching) {
@@ -57,25 +55,18 @@ export function TransitEntry ({field, which, value, allowShell, onStation, onTex
 	}
 
 	useEffect(() => { if (typing && input.current) { input.current.focus(); } }, [typing]);
-	useEffect(() => () => window.clearTimeout(timer.current), []);
 
 	const runSearch = (text: string) => {
-		const mine = ++seq.current;
-		if (text.trim().length < MIN_CHARS) { setResults(null); setBusy(false); setFailed(false); return; }
-		setBusy(true);
-		setFailed(false);
-		searchStations(text, allowShell).then(
-			(list) => { if (mine !== seq.current) return; setResults(list.map((s) => ({id: s.id, name: s.name}))); setBusy(false); },
-			() => { if (mine !== seq.current) return; setResults([]); setBusy(false); setFailed(true); }
-		);
+		if (text.trim().length < MIN_CHARS) search.reset();
+		else void search.run(text);
 	};
 
 	const onInput = (e: Event) => {
 		const text = (e.target as HTMLInputElement).value;
 		setQuery(text);
 		if (!searching) return;
-		window.clearTimeout(timer.current);
-		timer.current = window.setTimeout(() => runSearch(text), DEBOUNCE_MS);
+		if (text.trim().length < MIN_CHARS) search.reset();
+		else search.runSoon(text, DEBOUNCE_MS);
 	};
 
 	const leaveField = (toResults: boolean) => {
@@ -111,7 +102,6 @@ export function TransitEntry ({field, which, value, allowShell, onStation, onTex
 		if (e.keyCode === 13) {
 			e.preventDefault();
 			if (!searching) { onText(text.trim()); return; }
-			window.clearTimeout(timer.current);
 			if (text.trim().length >= MIN_CHARS && (results === null || busy || query !== text)) runSearch(text);
 			leaveField(true);
 		} else if (e.keyCode === 40 && searching) { e.preventDefault(); leaveField(true); }

@@ -4,6 +4,8 @@ import {OptionList, type OptionItem} from '../components/OptionList';
 import type {TileModel} from '../components/Tile';
 import {useKeys, clamp, type NavKey} from '../hooks/useKeys';
 import {useOkPress} from '../hooks/useOkPress';
+import {previewPanelMax} from '../hooks/useFreeSpace';
+import {layoutX} from '../lib/fitscale';
 import {LAYOUT} from '../theme/tokens';
 import {t as tt} from '../i18n';
 
@@ -36,8 +38,6 @@ export interface SettingsTab {
 	preview?: boolean;
 }
 
-/** Widest rows panel on a tab with a preview: the tab bar's width when it had six tabs (before Transit), so the preview keeps its room. */
-const PREVIEW_PANEL_W = 1376;
 
 interface Props {
 	tabs: SettingsTab[];
@@ -241,6 +241,8 @@ export function Settings ({tabs, active, onToggle, onRecent, onOption, onRefresh
 	// The rows panel is as wide as the tab bar (first tab's left edge to the last tab's right edge, plus the focus border).
 	const tabsRef = useRef<HTMLDivElement>(null);
 	const [panelWidth, setPanelWidth] = useState<number | undefined>(undefined);
+	// on a tab with a preview (Widget, Transit) the rows panel stops where the preview's room begins
+	const [previewMax, setPreviewMax] = useState<number | undefined>(undefined);
 	const labelKey = labels.join('|');
 	const [snug, setSnug] = useState(false);          // LF1b: the tab labels (a longer language) do not fit one row: use the tighter spacing
 	useLayoutEffect(() => { setSnug(false); }, [labelKey]);
@@ -253,6 +255,8 @@ export function Settings ({tabs, active, onToggle, onRecent, onOption, onRefresh
 		if (bar && !snug && tabCount <= 7 && bar.scrollWidth > room + 1) { setSnug(true); return; }          // measured with normal spacing first; the next pass measures the tight one
 		const w = Math.min(last.offsetLeft + last.offsetWidth - first.offsetLeft + 16, room);
 		if (w >= 600) setPanelWidth((p) => (p === w ? p : w));
+		const max = previewPanelMax(layoutX(first.getBoundingClientRect().left));
+		if (max >= 600) setPreviewMax((p) => (p === max ? p : max));
 	}, [labelKey, snug]);          // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => {          // a group opening or closing moves rows: keep the focus on the same row
 		const was = focusedId.current;
@@ -369,7 +373,7 @@ export function Settings ({tabs, active, onToggle, onRecent, onOption, onRefresh
 						selected={optionIndex}
 						onSelect={(i) => { setZone('content'); setOptionIndex(i); }}
 						onActivate={(i) => { setZone('content'); onOption(options[i].id); }}
-						width={current && current.preview && panelWidth ? Math.min(panelWidth, PREVIEW_PANEL_W) : panelWidth}
+						width={current && current.preview && panelWidth && previewMax ? Math.min(panelWidth, previewMax) : panelWidth}
 					/>
 				)}
 				{about && <p class="settings__about">{about}</p>}

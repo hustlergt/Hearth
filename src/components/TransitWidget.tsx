@@ -4,8 +4,8 @@ import type {ThemeName} from '../theme/tokens';
 import {THEMES} from '../theme/tokens';
 import {colorInfo, inkIsDark, validInk, type ClockColor} from '../lib/clockcolor';
 import {fontFamily} from '../lib/clockfont';
-import {countdownText, isFiltered, LIMIT_FILTERED, LIMIT_PLAIN, marqueeOffset, minutesLeft, readTransitCache, shortDestination, upcoming, usableBoard, writeTransitCache, type Board, type Departure} from '../lib/transit';
-import {resolveStation, startTransitPoller, type PollTarget} from '../lib/transitnet';
+import {countdownText, isFiltered, LIMIT_PLAIN, marqueeOffset, minutesLeft, readTransitCache, rowKeys, shortDestination, upcoming, usableBoard, writeTransitCache, type Board, type Departure} from '../lib/transit';
+import {pollTargets, resolveStation, startTransitPoller} from '../lib/transitnet';
 import {lineColor, STATION_AMBER} from '../lib/transitcolors';
 import type {TransitConfig, TransitLocation, TransitStation} from '../lib/transitconfig';
 import {isWebOS} from '../lib/luna';
@@ -29,6 +29,14 @@ interface Props {
 	toggle?: number;
 	/** Settings preview: nothing is fetched; the saved boards are shown (sample rows when there are none) */
 	preview?: boolean;
+	/** the saved boards, read once by the caller for all its previews (the preview reads them itself when not given) */
+	saved?: Record<string, Board>;
+	/** the home screen is covered by another screen (Settings): the board keeps fetching, but nothing moves or ticks */
+	covered?: boolean;
+	/** the Magic Remote pointer moved onto the board (given only when the board can take the highlight) */
+	onPointerOver?: () => void;
+	/** OK was pressed while pointing at the board */
+	onPointerPress?: () => void;
 }
 
 /** Base text size of the rows at 100 %, px at 1080p. */
@@ -81,8 +89,9 @@ type View =
 
 /** The departure board (Settings → Transit): one or two stops, alternating in the same place. The data is fetched once a
  *  minute; the minutes are counted down here, from the departure time and the delay, every few seconds. */
-export function TransitWidget ({config, clock, theme, paused, shift, onStation, focused, toggle, preview}: Props) {
-	const [boards, setBoards] = useState<Record<string, Board>>(readTransitCache);
+export function TransitWidget ({config, clock, theme, paused, shift, onStation, focused, toggle, preview, saved, covered, onPointerOver, onPointerPress}: Props) {
+	const [ownBoards, setBoards] = useState<Record<string, Board>>(() => (saved ? {} : readTransitCache()));
+	const boards = preview && saved ? saved : ownBoards;
 	const [errors, setErrors] = useState<Record<string, boolean>>({});
 	const [resolveFailed, setResolveFailed] = useState<Record<string, boolean>>({});
 	const [now, setNow] = useState(Date.now());
@@ -92,10 +101,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 	const locs: TransitLocation[] = config.loc2On ? [config.loc1, config.loc2] : [config.loc1];
 	const cycling = locs.length > 1 && config.cycleSec > 0;
 	const shown: TransitLocation[] = cycling ? locs : [config.loc1];
-	const targets: PollTarget[] = [];
-	shown.forEach((l) => {
-		if (l.station && l.station.id && !targets.some((t) => t.id === l.station!.id)) targets.push({id: l.station.id, limit: isFiltered(l) ? LIMIT_FILTERED : LIMIT_PLAIN});
-	});
+	const targets = pollTargets(shown);
 	const targetKey = targets.map((t) => t.id + ':' + t.limit).join(',');
 	const keepRef = useRef<string[]>([]);
 	keepRef.current = targets.map((t) => t.id);
@@ -119,17 +125,21 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 			const key = p.which + ':' + p.name;
 			if (asking.current[key]) return;
 			asking.current[key] = true;
+			// not found (an empty or unreadable reply) and failed requests alike: shown as unavailable, tried again in a minute
+			const notFound = () => {
+				asking.current[key] = false;
+				if (!alive.current) return;
+				setResolveFailed((r) => (r[p.name] ? r : {...r, [p.name]: true}));
+				window.setTimeout(() => { if (alive.current) setRetryTick((n) => n + 1); }, 60000);
+			};
 			resolveStation(p.name, allowShell).then((s) => {
+				if (!s) { notFound(); return; }
 				asking.current[key] = false;
 				if (!alive.current) return;
-				if (s) { log(`transit: stop "${p.name}" is ${s.id}`); if (onStationRef.current) onStationRef.current(p.which, s); }
-				else setResolveFailed((r) => ({...r, [p.name]: true}));
-			}, () => {
-				asking.current[key] = false;
-				if (!alive.current) return;
-				setResolveFailed((r) => ({...r, [p.name]: true}));
-				window.setTimeout(() => { if (alive.current) setRetryTick((n) => n + 1); }, 60000);          // tried again in a minute
-			});
+				log(`transit: stop "${p.name}" is ${s.id}`);
+				setResolveFailed((r) => { if (!r[p.name]) return r; const next = {...r}; delete next[p.name]; return next; });
+				if (onStationRef.current) onStationRef.current(p.which, s);
+			}, notFound);
 		});
 	}, [pendingKey, paused, retryTick]);          // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -159,11 +169,11 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 	// The countdown is worked out here, from the departure time and the delay. The preview also reads the saved boards again
 	// (the home screen's board, still running underneath Settings, keeps them fresh).
 	useEffect(() => {
-		if (paused) return undefined;
+		if (paused || covered) return undefined;
 		setNow(Date.now());
-		const timer = window.setInterval(() => { setNow(Date.now()); if (preview) setBoards(readTransitCache()); }, TICK_MS);
+		const timer = window.setInterval(() => { setNow(Date.now()); if (preview && !saved) setBoards(readTransitCache()); }, TICK_MS);
 		return () => window.clearInterval(timer);
-	}, [paused]);          // eslint-disable-line react-hooks/exhaustive-deps
+	}, [paused, covered, !saved]);          // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Location 1 and 2 take turns; OK on the focused board switches at once and starts the wait again.
 	useEffect(() => { if (!cycling) setPage(0); }, [cycling]);
@@ -193,7 +203,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 			el.style.webkitTransform = v;
 		};
 		const texts = () => root.querySelectorAll('.transit__to-text');
-		if (!config.scrollNames || paused) { const all = texts(); for (let i = 0; i < all.length; i++) setX(all[i] as HTMLElement, 0); return undefined; }
+		if (!config.scrollNames || paused || covered) { const all = texts(); for (let i = 0; i < all.length; i++) setX(all[i] as HTMLElement, 0); return undefined; }
 		let stopped = false;
 		let raf = 0;
 		let timer = 0;
@@ -229,7 +239,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 		measure();
 		frame();
 		return () => { stopped = true; window.cancelAnimationFrame(raf); window.clearTimeout(timer); };
-	}, [config.scrollNames, paused, page]);
+	}, [config.scrollNames, paused, covered, page]);
 
 	const look = lookOf(config, clock, theme);
 	const views: View[] = useMemo(() => shown.map((l): View => {
@@ -294,11 +304,11 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 			<div class="transit__body" style={bodyStyle}>
 				{v.kind === 'message'
 					? <div class="transit__message">{v.text}</div>
-					: v.rows.map((d) => {
+					: v.rows.map((d, j, all) => {
 						const m = minutesLeft(d, now);
 						const bg = look.badge(d.line);
 						return (
-							<div class="transit__row" key={d.line + d.to + d.ts}>
+							<div class="transit__row" key={rowKeys(all)[j]}>
 								<span class="transit__badge" style={{background: bg, color: badgeInk(bg), boxShadow: boxShadow || undefined}}>{d.line}</span>
 								{config.scrollNames
 									? <span class="transit__to transit__to--scroll"><span class="transit__to-text">{destination(l, d)}</span></span>
@@ -316,7 +326,7 @@ export function TransitWidget ({config, clock, theme, paused, shift, onStation, 
 	);
 
 	return (
-		<div ref={rootRef} class={`transit${focused ? ' transit--focused' : ''}`} style={style}>
+		<div ref={rootRef} class={`transit${focused ? ' transit--focused' : ''}${onPointerOver || onPointerPress ? ' transit--pointer' : ''}`} style={style} onMouseEnter={onPointerOver} onClick={onPointerPress}>
 			<div class="transit__pages">
 				{shown.map((l, i) => renderPage(l, views[i], i))}
 			</div>

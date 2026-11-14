@@ -21,7 +21,9 @@ IPK="$(ls build/*.ipk 2>/dev/null | head -1)"
 
 REMOTE_IPK="/tmp/$(basename "$IPK")"
 echo "Copying $(basename "$IPK") to $TV_HOST..."
-scp -q "$IPK" "$TV_HOST:$REMOTE_IPK"
+# -O: the classic scp protocol. OpenSSH 9+ copies over SFTP by default, and the TV's SSH server has no SFTP
+# ("scp: Connection closed").
+scp -O -q "$IPK" "$TV_HOST:$REMOTE_IPK"
 
 echo "Installing $APP_ID..."
 # luna-send needs a tty (-tt) to print anything; the subscription ends when the install does.

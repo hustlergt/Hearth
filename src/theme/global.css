@@ -237,6 +237,7 @@ html, body {
 	-webkit-transition: opacity 300ms ease;
 	transition: opacity 300ms ease;
 }
+.transit--pointer { pointer-events: auto; }          /* home screen, two locations taking turns: the Magic Remote can point at it */
 .transit__pages { position: relative; }
 .transit__page { -webkit-transition: opacity 300ms ease; transition: opacity 300ms ease; }
 .transit__page--on { position: relative; opacity: 1; }

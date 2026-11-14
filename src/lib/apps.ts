@@ -16,7 +16,7 @@ import {noteExec, rootState, type RootState} from './failure';
 import {listTvApps, iconAddress, iconLoads} from './ssap';
 import {keepIcons, readIconData, withKeptIcons} from './ssapicons';
 import {log} from './log';
-import {APPS_CACHE_KEY, deserializeApps, serializeApps} from './appcache';
+import {APPS_CACHE_KEY, appsCacheCurrent, deserializeApps, serializeApps} from './appcache';
 import {ICON_STAMPS_KEY, iconIsFresh, parseStamps, stampCommand} from './iconstamps';
 
 export interface AppEntry {
@@ -282,7 +282,7 @@ let savedApps: string | null = null;
 
 export function cacheApps (apps: AppEntry[]): void {
 	const text = serializeApps(apps);
-	if (text === savedApps) return;
+	if (appsCacheCurrent(text, savedApps, localStorage)) return;
 	try { localStorage.setItem(APPS_CACHE_KEY, text); savedApps = text; }
 	catch { savedApps = null; /* quota exceeded: the next start just waits for the real list */ }
 }
